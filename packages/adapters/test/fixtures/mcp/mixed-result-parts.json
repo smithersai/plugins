@@ -1,0 +1,12 @@
+{
+  "isError": false,
+  "content": [
+    { "type": "text", "text": "prefix 😀" },
+    { "type": "image", "data": "aGVsbG8=", "mimeType": "image/png", "name": "preview\nunsafe" },
+    {
+      "type": "resource",
+      "resource": { "uri": "file:///tmp/secret", "blob": "cmVzb3VyY2U=", "mimeType": "application/octet-stream" }
+    },
+    { "type": "text", "text": "tail" }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "method": "notifications/tools/list_changed",
+  "params": {}
+}

@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"0198a9cf-246c-76a2-8f32-1af472c04bee"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"reasoning","text":""}}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Inspecting the adapter contract."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"The Codex adapter retained every exec option."}}
+{"type":"turn.completed","usage":{"input_tokens":387,"cached_input_tokens":256,"output_tokens":42}}

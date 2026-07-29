@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"claude-session-quoted"}
+{"type":"rate_limit_event","status":"rejected","overageDisabledReason":"out_of_credits","resets_at":"2026-07-29T03:00:00Z"}
+{"type":"result","subtype":"success","is_error":true,"result":"You've hit your session limit · resets 3pm PT"}

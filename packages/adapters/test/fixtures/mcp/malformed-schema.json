@@ -1,0 +1,18 @@
+{
+  "tools": [
+    {
+      "name": "broken.schema",
+      "description": "A \u0001 tool description\nwith unsafe whitespace",
+      "inputSchema": "this is not a JSON Schema"
+    },
+    {
+      "name": "valid",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
