@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "npm run check --workspaces --if-present"
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
     "@smithers/control": "file:packages/agent/packages/control",
