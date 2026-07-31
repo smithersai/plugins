@@ -16,8 +16,8 @@ Package metadata is also exported from `@smithers/host-vercel/package.json`.
 
 Adapts an injected Blob or KV binding to Effect's filesystem service.
 
-- `BlobBinding` — structural subset of `@vercel/blob` used by the adapter.
-- `KvBinding` — structural subset of a Vercel KV-compatible binding.
+- `BlobBinding` — application-supplied Blob adapter with byte reads/writes, deletion, and prefix listing.
+- `KvBinding` — application-supplied KV adapter with byte reads/writes, deletion, and prefix scanning.
 - `Storage` — persistent `{ blob }` or `{ kv }` binding supplied by the application.
 - `make` — constructs an Effect `FileSystem` over Blob or KV storage.
 - `layer` — provides the constructed `FileSystem`.

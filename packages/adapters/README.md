@@ -208,6 +208,15 @@ Selects registry flows for external discovery surfaces.
 - `select` — selects visible, capability-compatible flows and resolves their schemas.
 - `toToolName` — converts a registry flow name to a surface-safe tool name.
 
+```ts
+import { Projection } from "@smithers/adapters"
+import { Effect } from "effect"
+
+const selection = Projection.select(registry, seatCapabilities).pipe(
+  Effect.provide(Projection.layerSchemaResolver(resolveSchema))
+)
+```
+
 ### `FlowsAsSkills`
 
 Renders and mounts selected flows as deterministic skill trees.
@@ -251,6 +260,19 @@ Renders and serves selected flows as run-scoped MCP tools.
 - `render` — renders selected flows as MCP tools.
 - `mount` — serves the projection, writes bootstrap configuration, and returns harness options.
 
+```ts
+import { FlowsAsMcp } from "@smithers/adapters"
+import { Effect } from "effect"
+
+const mounted = Effect.gen(function*() {
+  const rendered = yield* FlowsAsMcp.render(selection, capabilities)
+  return yield* FlowsAsMcp.mount(rendered, capabilities, invokeChild)
+}).pipe(
+  Effect.provide(FlowsAsMcp.layerServer(server)),
+  Effect.scoped
+)
+```
+
 ### `Mcp`
 
 Defines provider-neutral MCP transport, parsing, artifact, and result utilities.
@@ -290,6 +312,16 @@ Defines provider-neutral MCP transport, parsing, artifact, and result utilities.
 - `DemuxOptions` — byte caps and optional redaction for result demultiplexing.
 - `demuxResult` — stores non-text content and returns bounded journal-safe output.
 - `demultiplex` — alias of `demuxResult`.
+
+```ts
+import { Mcp } from "@smithers/adapters"
+import { Effect } from "effect"
+
+const tools = Effect.gen(function*() {
+  const transport = yield* Mcp.Transport
+  return yield* transport.listTools()
+}).pipe(Effect.provide(Mcp.layer(transportImplementation)))
+```
 
 ### `McpAsFlow`
 

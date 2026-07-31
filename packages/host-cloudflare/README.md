@@ -14,7 +14,7 @@ The root entry exports these namespaces. The same modules are public subpaths su
 
 Adapts injected object storage to Effect's filesystem service.
 
-- `ObjectStore` — structural R2 or Durable Object binding with `get`, `put`, `delete`, and prefix `list` operations.
+- `ObjectStore` — application-supplied object-storage adapter with `get`, `put`, `delete`, and prefix `list` operations.
 - `make` — constructs an Effect `FileSystem` over an `ObjectStore`.
 - `layer` — provides the constructed `FileSystem`.
 
