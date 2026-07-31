@@ -27,12 +27,12 @@ export type CloudflareHost = FileSystem | Path.Path | Shell.Shell | Pty.Pty | Jj
 
 /** Stable implementation identities for the six Host slots. @category models @since 0.1.0 */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
-  [HostServiceIds[0]]: "cloudflare-object-storage",
-  [HostServiceIds[1]]: "cloudflare-path",
-  [HostServiceIds[2]]: "cloudflare-edge-unsupported",
-  [HostServiceIds[3]]: "cloudflare-edge-unsupported",
-  [HostServiceIds[4]]: "cloudflare-edge-unsupported",
-  [HostServiceIds[5]]: "cloudflare-workers-fetch"
+  "effect/FileSystem": "cloudflare-object-storage",
+  "effect/Path": "cloudflare-path",
+  "flows/host/Shell": "cloudflare-edge-unsupported",
+  "flows/host/Pty": "cloudflare-edge-unsupported",
+  "flows/host/Jj": "cloudflare-edge-unsupported",
+  "flows/host/HttpTransport": "cloudflare-workers-fetch"
 }
 
 /** Default Workers layer: object storage, Workers fetch, and typed local-process failures. @category layers @since 0.1.0 */

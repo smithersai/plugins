@@ -28,12 +28,12 @@ export type VercelHost = FileSystem.FileSystem | Path.Path | Shell | Pty | Jj | 
 
 /** Stable implementation identities for this bundle's six Host slots. @category models @since 0.1.0 */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
-  [HostServiceIds[0]]: "vercel-blob-kv",
-  [HostServiceIds[1]]: "vercel-path",
-  [HostServiceIds[2]]: "vercel-edge-unsupported",
-  [HostServiceIds[3]]: "vercel-edge-unsupported",
-  [HostServiceIds[4]]: "vercel-edge-unsupported",
-  [HostServiceIds[5]]: "vercel-fetch"
+  "effect/FileSystem": "vercel-blob-kv",
+  "effect/Path": "vercel-path",
+  "flows/host/Shell": "vercel-edge-unsupported",
+  "flows/host/Pty": "vercel-edge-unsupported",
+  "flows/host/Jj": "vercel-edge-unsupported",
+  "flows/host/HttpTransport": "vercel-fetch"
 }
 
 /** Options for the persistent edge bundle. @category models @since 0.1.0 */
