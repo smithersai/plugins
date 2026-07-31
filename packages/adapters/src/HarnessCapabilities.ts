@@ -8,8 +8,8 @@
  *
  * @since 0.1.0
  */
-import * as Digest from "@flows/keys/Digest"
-import { CanonicalJson } from "@flows/model"
+import * as Digest from "@smithers/keys/Digest"
+import { CanonicalJson } from "@smithers/model"
 import { HashMap, type Option, Schema } from "effect"
 
 /**

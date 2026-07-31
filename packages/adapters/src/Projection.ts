@@ -7,12 +7,12 @@
  *
  * @since 0.1.0
  */
-import * as Visibility from "@flows/harness/Visibility"
-import * as Capability from "@flows/kernel/Capability"
-import * as Digest from "@flows/keys/Digest"
-import { CanonicalJson } from "@flows/model"
-import type { FlowDescriptor, SchemaRef } from "@flows/registry/Descriptor"
-import type { Registry } from "@flows/registry/Registry"
+import * as Visibility from "@smithers/harness/Visibility"
+import * as Capability from "@smithers/kernel/Capability"
+import * as Digest from "@smithers/keys/Digest"
+import { CanonicalJson } from "@smithers/model"
+import type { FlowDescriptor, SchemaRef } from "@smithers/registry/Descriptor"
+import type { Registry } from "@smithers/registry/Registry"
 import { Context, Effect, Layer, Schema } from "effect"
 
 /**

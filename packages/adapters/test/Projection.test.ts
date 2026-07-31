@@ -1,5 +1,5 @@
-import type { FlowDescriptor, SchemaRef } from "@flows/registry/Descriptor"
-import type { Registry } from "@flows/registry/Registry"
+import type { FlowDescriptor, SchemaRef } from "@smithers/registry/Descriptor"
+import type { Registry } from "@smithers/registry/Registry"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import { makeSchemaResolver, ProjectionError, SchemaResolver, select } from "../src/Projection.ts"

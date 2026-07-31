@@ -5,9 +5,9 @@
  *
  * @since 0.1.0
  */
-import * as Digest from "@flows/keys/Digest"
-import * as FileSystem from "@flows/kernel/FileSystem"
-import { CanonicalJson } from "@flows/model"
+import * as Digest from "@smithers/keys/Digest"
+import * as FileSystem from "@smithers/kernel/FileSystem"
+import { CanonicalJson } from "@smithers/model"
 import { Context, Effect, Layer, type Scope } from "effect"
 import type * as CliHarness from "./CliHarness.ts"
 import type { JsonSchema, Selection } from "./Projection.ts"
@@ -120,7 +120,7 @@ export interface Server {
  * @category services
  * @since 0.1.0
  */
-export const Server: Context.Service<Server, Server> = Context.Service("@flows/adapters/FlowsAsMcp/Server")
+export const Server: Context.Service<Server, Server> = Context.Service("@smithers/adapters/FlowsAsMcp/Server")
 
 /**
  * Constructs an MCP projection server host.

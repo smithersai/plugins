@@ -1,5 +1,5 @@
 {
-  "name": "@flows/adapters",
+  "name": "@smithers/adapters",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -16,14 +16,14 @@
   "tags": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "agent",
     "adapters"
   ],
   "keywords": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "agent",
     "adapters"
   ],
@@ -77,17 +77,17 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@flows/control": "file:../smithers-agent/packages/control",
-    "@flows/harness": "file:../smithers-agent/packages/harness",
-    "@flows/keys": "file:../smithers-flows/packages/keys",
-    "@flows/kernel": "file:../smithers-flows/packages/kernel",
-    "@flows/model": "file:../smithers-agent/packages/model",
-    "@flows/registry": "file:../smithers-agent/packages/registry",
+    "@smithers/control": "file:../agent/packages/control",
+    "@smithers/harness": "file:../agent/packages/harness",
+    "@smithers/keys": "file:../flows/packages/keys",
+    "@smithers/kernel": "file:../flows/packages/kernel",
+    "@smithers/model": "file:../agent/packages/model",
+    "@smithers/registry": "file:../agent/packages/registry",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
-    "@flows/journal": "file:../smithers-flows/packages/journal",
+    "@smithers/journal": "file:../flows/packages/journal",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@flows/adapters` — declarative CLI harness adapters and reverse projections.
+ * `@smithers/adapters` — declarative CLI harness adapters and reverse projections.
  *
  * Governing contracts:
  * `docs/specs/Concepts/Agent Adapters.md` and
@@ -97,7 +97,7 @@ export * as Mcp from "./Mcp.ts"
  * @category MCP
  * @since 0.1.0
  */
-export * as McpAsWorkflow from "./McpAsWorkflow.ts"
+export * as McpAsFlow from "./McpAsFlow.ts"
 
 /**
  * @category adapters

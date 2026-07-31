@@ -9,15 +9,15 @@
  *
  * @since 0.1.0
  */
-import * as Credential from "@flows/control/Credential"
-import * as Capability from "@flows/kernel/Capability"
+import * as Credential from "@smithers/control/Credential"
+import * as Capability from "@smithers/kernel/Capability"
 import {
   BodyRefModule,
   FlowDescriptor,
   Provenance,
   SchemaRefModule,
   SchemaRefNone
-} from "@flows/registry/Descriptor"
+} from "@smithers/registry/Descriptor"
 import { Context, Effect, Layer, Option, Redacted, Schema, Semaphore, type Scope } from "effect"
 import * as Mcp from "./Mcp.ts"
 
@@ -44,7 +44,7 @@ export interface Config {
  * @category models
  * @since 0.1.0
  */
-export interface Workflow {
+export interface Flow {
   readonly descriptor: FlowDescriptor
   readonly inputSchema: Schema.Schema<unknown>
   readonly invoke: (input: unknown) => Effect.Effect<Mcp.DemuxedResult, Mcp.McpError>
@@ -53,7 +53,7 @@ export interface Workflow {
 /**
  * The incoming MCP wrapper service.
  *
- * `descriptors` and `workflows` are both stable snapshots.  `list` is an alias
+ * `descriptors` and `flows` are both stable snapshots.  `list` is an alias
  * for `descriptors`; `invoke` accepts the sanitized descriptor name.
  *
  * @category services
@@ -64,8 +64,8 @@ export interface Service {
   readonly status: () => Effect.Effect<Mcp.Status>
   readonly descriptors: () => Effect.Effect<ReadonlyArray<FlowDescriptor>, Mcp.McpError>
   readonly list: () => Effect.Effect<ReadonlyArray<FlowDescriptor>, Mcp.McpError>
-  readonly workflows: () => Effect.Effect<ReadonlyArray<Workflow>, Mcp.McpError>
-  readonly get: (name: string) => Effect.Effect<Workflow, Mcp.McpError>
+  readonly flows: () => Effect.Effect<ReadonlyArray<Flow>, Mcp.McpError>
+  readonly get: (name: string) => Effect.Effect<Flow, Mcp.McpError>
   readonly invoke: (name: string, input: unknown) => Effect.Effect<Mcp.DemuxedResult, Mcp.McpError>
   readonly invokeTool: (name: string, input: unknown) => Effect.Effect<Mcp.DemuxedResult, Mcp.McpError>
   readonly artifacts: Mcp.ArtifactStore
@@ -79,7 +79,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export const McpAsWorkflow: Context.Service<Service, Service> = Context.Service("@flows/adapters/McpAsWorkflow")
+export const McpAsFlow: Context.Service<Service, Service> = Context.Service("@smithers/adapters/McpAsFlow")
 
 const descriptorFor = (
   server: string,
@@ -116,7 +116,7 @@ const descriptorFor = (
     provenance: new Provenance({ source: "mcp", root: Mcp.sanitizeName(server) })
   })
 
-const statusWorkflow = (server: string): Workflow => {
+const statusFlow = (server: string): Flow => {
   const serverName = Mcp.sanitizeName(server)
   const descriptor = new FlowDescriptor({
     name: `${serverName}_needs_auth`,
@@ -158,7 +158,7 @@ const normalizeFailure = (cause: unknown, fallback: Mcp.McpErrorCode, secret?: s
 }
 
 /**
- * Constructs a lazy, scoped MCP-to-workflow wrapper.
+ * Constructs a lazy, scoped MCP-to-flow wrapper.
  *
  * A credential is resolved only at the first connection and is passed to the
  * injected transport as an ephemeral string.  It is never copied into the
@@ -190,10 +190,10 @@ export const make = (
     let subscribed = false
     let credentialSecret: string | undefined
     let tools: ReadonlyArray<Mcp.ToolDefinition> = []
-    let entries: ReadonlyArray<Workflow> = []
-    const authEntry = statusWorkflow(config.name)
+    let entries: ReadonlyArray<Flow> = []
+    const authEntry = statusFlow(config.name)
 
-    const publish = (next: ReadonlyArray<Workflow>): Effect.Effect<void, Mcp.McpError> =>
+    const publish = (next: ReadonlyArray<Flow>): Effect.Effect<void, Mcp.McpError> =>
       config.publish?.(next.map((entry) => entry.descriptor)) ?? Effect.void
 
     const resolveCredential = (): Effect.Effect<string | undefined, Mcp.McpError> => {
@@ -275,7 +275,7 @@ export const make = (
     const ensureConnected = (): Effect.Effect<void, Mcp.McpError> =>
       lifecycleGate.withPermits(1)(ensureConnectedUnsafe())
 
-    const visibleAfterConnect = (): Effect.Effect<ReadonlyArray<Workflow>, Mcp.McpError> =>
+    const visibleAfterConnect = (): Effect.Effect<ReadonlyArray<Flow>, Mcp.McpError> =>
       ensureConnected().pipe(
         Effect.map(() => entries),
         Effect.catchTag("flows/adapters/McpError", (cause) =>
@@ -286,19 +286,19 @@ export const make = (
       )
     const descriptors = (): Effect.Effect<ReadonlyArray<FlowDescriptor>, Mcp.McpError> =>
       visibleAfterConnect().pipe(Effect.map((available) => available.map((entry) => entry.descriptor)))
-    const workflows = (): Effect.Effect<ReadonlyArray<Workflow>, Mcp.McpError> =>
+    const flows = (): Effect.Effect<ReadonlyArray<Flow>, Mcp.McpError> =>
       visibleAfterConnect()
-    const get = (name: string): Effect.Effect<Workflow, Mcp.McpError> =>
-      workflows().pipe(
+    const get = (name: string): Effect.Effect<Flow, Mcp.McpError> =>
+      flows().pipe(
         Effect.flatMap((available) => {
-          const workflow = available.find((entry) => entry.descriptor.name === name)
-          return workflow === undefined
+          const flow = available.find((entry) => entry.descriptor.name === name)
+          return flow === undefined
             ? Effect.fail(failure("protocol_error", `MCP tool "${Mcp.sanitizeName(name)}" was not found`))
-            : Effect.succeed(workflow)
+            : Effect.succeed(flow)
         })
       )
     const invoke = (name: string, input: unknown): Effect.Effect<Mcp.DemuxedResult, Mcp.McpError> =>
-      get(name).pipe(Effect.flatMap((workflow) => workflow.invoke(input)))
+      get(name).pipe(Effect.flatMap((flow) => flow.invoke(input)))
     const close = (): Effect.Effect<void, Mcp.McpError> =>
       Effect.suspend(() => {
         if (closed) return Effect.void
@@ -309,12 +309,12 @@ export const make = (
         )
       })
 
-    const service = McpAsWorkflow.of({
+    const service = McpAsFlow.of({
       name: config.name,
       status: () => Effect.succeed(lifecycle),
       descriptors,
       list: descriptors,
-      workflows,
+      flows,
       get,
       invoke,
       invokeTool: invoke,
@@ -329,12 +329,12 @@ export const make = (
   })
 
 /**
- * Provides a scoped MCP-to-workflow wrapper.
+ * Provides a scoped MCP-to-flow wrapper.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer = (config: Config): Layer.Layer<Service, Mcp.McpError> => Layer.effect(McpAsWorkflow, make(config))
+export const layer = (config: Config): Layer.Layer<Service, Mcp.McpError> => Layer.effect(McpAsFlow, make(config))
 
 /**
  * Constructs an empty wrapper service with optional operation overrides.
@@ -343,15 +343,15 @@ export const layer = (config: Config): Layer.Layer<Service, Mcp.McpError> => Lay
  * @since 0.1.0
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
-  const unavailable = () => Effect.fail(failure("transport_failed", "MCP workflow wrapper is unavailable"))
+  const unavailable = () => Effect.fail(failure("transport_failed", "MCP flow wrapper is unavailable"))
   const descriptors = () => Effect.succeed<ReadonlyArray<FlowDescriptor>>([])
-  const workflows = () => Effect.succeed<ReadonlyArray<Workflow>>([])
-  return McpAsWorkflow.of({
+  const flows = () => Effect.succeed<ReadonlyArray<Flow>>([])
+  return McpAsFlow.of({
     name: "noop",
     status: () => Effect.succeed("disconnected" as const),
     descriptors,
     list: descriptors,
-    workflows,
+    flows,
     get: unavailable,
     invoke: unavailable,
     invokeTool: unavailable,
@@ -369,4 +369,4 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  * @since 0.1.0
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Service> =>
-  Layer.succeed(McpAsWorkflow, makeNoop(overrides))
+  Layer.succeed(McpAsFlow, makeNoop(overrides))

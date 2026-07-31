@@ -1,4 +1,4 @@
-import * as FileSystem from "@flows/kernel/FileSystem"
+import * as FileSystem from "@smithers/kernel/FileSystem"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import { install, mount, render } from "../src/FlowsAsSkills.ts"

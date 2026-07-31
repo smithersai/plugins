@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import { CanonicalJson } from "@flows/model"
+import { CanonicalJson } from "@smithers/model"
 import { Effect } from "effect"
 import * as AdapterError from "./AdapterError.ts"
 import { digest } from "./HarnessCapabilities.ts"

@@ -1,6 +1,6 @@
-# @flows/adapters
+# @smithers/adapters
 
-`@flows/adapters` provides declarative adapters for foreign CLI harnesses and
+`@smithers/adapters` provides declarative adapters for foreign CLI harnesses and
 the projections that make flows available inside those harnesses.
 
 ## Declarative CLI harnesses

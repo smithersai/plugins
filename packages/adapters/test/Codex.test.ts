@@ -1,4 +1,4 @@
-import * as Shell from "@flows/kernel/Shell"
+import * as Shell from "@smithers/kernel/Shell"
 import { Effect } from "effect"
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"

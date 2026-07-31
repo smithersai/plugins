@@ -1,22 +1,32 @@
 # Smithers Plugins
 
 Smithers Plugins packages vendor adapters and projections for the Smithers
-ecosystem. It currently contains `@flows/adapters`, which provides declarative
-Claude Code and Codex CLI adapters plus Skills and MCP projections.
+ecosystem.
+
+- `@smithers/adapters` — declarative Claude Code and Codex CLI adapters plus Skills
+  and MCP projections.
+- `@smithers/host-cloudflare` — Cloudflare Workers `Host` and Durable Object
+  database adapters.
+- `@smithers/host-vercel` — Vercel Edge and Node `Host` layers plus Blob store
+  bindings.
+
+Platform host adapters live here rather than in the engine repository: they are
+vendor integrations, not part of the closed `flows` workspace dependency set.
+Their docs are under [`docs/`](docs/).
 
 ## Development
 
-Keep this repository beside `smithers-agent` and `smithers-flows`:
+Keep this repository beside `agent` and `flows`:
 
 ```text
 parent/
-  smithers-agent/
-  smithers-flows/
-  smithers-plugins/
+  agent/
+  flows/
+  plugins/
 ```
 
-`@flows/adapters` links its agent-layer dependencies from `smithers-agent` and
-its durable flows-layer dependencies from `smithers-flows`. The links use
+Each package links its agent-layer dependencies from `agent` and its durable
+flows-layer dependencies from `flows`. The links use
 relative symlink indirection so the `packages/*` workspace glob does not absorb
 either sibling repository.
 

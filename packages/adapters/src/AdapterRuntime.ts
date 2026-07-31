@@ -8,8 +8,8 @@
  *
  * @since 0.1.0
  */
-import * as EngineLike from "@flows/harness/EngineLike"
-import * as Harness from "@flows/harness/Harness"
+import * as EngineLike from "@smithers/harness/EngineLike"
+import * as Harness from "@smithers/harness/Harness"
 import { Context, Effect, HashMap, Layer, Option } from "effect"
 import * as AdapterError from "./AdapterError.ts"
 import { spec as claudeCodeSpec } from "./ClaudeCode.ts"
@@ -75,7 +75,7 @@ export interface AdapterRuntime {
  * @since 0.1.0
  */
 export const AdapterRuntime: Context.Service<AdapterRuntime, AdapterRuntime> = Context.Service(
-  "@flows/adapters/AdapterRuntime"
+  "@smithers/adapters/AdapterRuntime"
 )
 
 /**

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as FileSystem from "@flows/kernel/FileSystem"
-import * as Shell from "@flows/kernel/Shell"
+import * as FileSystem from "@smithers/kernel/FileSystem"
+import * as Shell from "@smithers/kernel/Shell"
 import { Effect, Layer, Stream } from "effect"
 
 /**

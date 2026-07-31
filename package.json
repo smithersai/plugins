@@ -1,5 +1,5 @@
 {
-  "name": "smithers-plugins",
+  "name": "plugins",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -10,17 +10,17 @@
     "check": "npm run check --workspaces --if-present"
   },
   "devDependencies": {
-    "@flows/control": "file:packages/smithers-agent/packages/control",
-    "@flows/core": "file:packages/smithers-agent/packages/core",
-    "@flows/database": "file:packages/smithers-flows/packages/database",
-    "@flows/harness": "file:packages/smithers-agent/packages/harness",
-    "@flows/host": "file:packages/smithers-flows/packages/host",
-    "@flows/journal": "file:packages/smithers-flows/packages/journal",
-    "@flows/kernel": "file:packages/smithers-flows/packages/kernel",
-    "@flows/keys": "file:packages/smithers-flows/packages/keys",
-    "@flows/model": "file:packages/smithers-agent/packages/model",
-    "@flows/notifications": "file:packages/smithers-agent/packages/notifications",
-    "@flows/registry": "file:packages/smithers-agent/packages/registry"
+    "@smithers/control": "file:packages/agent/packages/control",
+    "@smithers/core": "file:packages/agent/packages/core",
+    "@smithers/database": "file:packages/flows/packages/database",
+    "@smithers/harness": "file:packages/agent/packages/harness",
+    "@smithers/host": "file:packages/flows/packages/host",
+    "@smithers/journal": "file:packages/flows/packages/journal",
+    "@smithers/kernel": "file:packages/flows/packages/kernel",
+    "@smithers/keys": "file:packages/flows/packages/keys",
+    "@smithers/model": "file:packages/agent/packages/model",
+    "@smithers/notifications": "file:packages/agent/packages/notifications",
+    "@smithers/registry": "file:packages/agent/packages/registry"
   },
   "engines": {
     "node": ">=22.19.0"

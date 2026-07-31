@@ -11,7 +11,7 @@
  *
  * @since 0.1.0
  */
-import * as HarnessError from "@flows/harness/HarnessError"
+import * as HarnessError from "@smithers/harness/HarnessError"
 import { Effect, Schema } from "effect"
 
 /**

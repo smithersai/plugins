@@ -8,7 +8,7 @@
  *
  * @since 0.1.0
  */
-import * as Digest from "@flows/keys/Digest"
+import * as Digest from "@smithers/keys/Digest"
 import { Context, Effect, Layer, Schema } from "effect"
 
 /**
@@ -174,7 +174,7 @@ export interface ArtifactStore {
  * @since 0.1.0
  */
 export const ArtifactStore: Context.Service<ArtifactStore, ArtifactStore> = Context.Service(
-  "@flows/adapters/Mcp/ArtifactStore"
+  "@smithers/adapters/Mcp/ArtifactStore"
 )
 
 /**
@@ -267,7 +267,7 @@ export type Transport = TransportService
  * @since 0.1.0
  */
 export const Transport: Context.Service<TransportService, TransportService> = Context.Service(
-  "@flows/adapters/Mcp/Transport"
+  "@smithers/adapters/Mcp/Transport"
 )
 
 /**

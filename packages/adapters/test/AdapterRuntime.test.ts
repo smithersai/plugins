@@ -1,4 +1,4 @@
-import * as EngineLike from "@flows/harness/EngineLike"
+import * as EngineLike from "@smithers/harness/EngineLike"
 import { Effect, HashMap } from "effect"
 import { describe, expect, it } from "vitest"
 import * as AdapterRuntime from "../src/AdapterRuntime.ts"

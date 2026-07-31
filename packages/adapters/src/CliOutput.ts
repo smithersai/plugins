@@ -7,9 +7,9 @@
  *
  * @since 0.1.0
  */
-import * as AgentEvent from "@flows/harness/AgentEvent"
-import * as ModelEvent from "@flows/model/ModelEvent"
-import * as ModelRequest from "@flows/model/ModelRequest"
+import * as AgentEvent from "@smithers/harness/AgentEvent"
+import * as ModelEvent from "@smithers/model/ModelEvent"
+import * as ModelRequest from "@smithers/model/ModelRequest"
 import { Stream } from "effect"
 
 const eventType = {

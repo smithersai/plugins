@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as FileSystem from "@flows/kernel/FileSystem"
-import * as Digest from "@flows/keys/Digest"
+import * as FileSystem from "@smithers/kernel/FileSystem"
+import * as Digest from "@smithers/keys/Digest"
 import { Effect, type Scope } from "effect"
 import type * as CliHarness from "./CliHarness.ts"
 import type { Selection } from "./Projection.ts"

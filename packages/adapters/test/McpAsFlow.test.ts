@@ -1,11 +1,11 @@
-import * as Credential from "@flows/control/Credential"
-import * as Capability from "@flows/kernel/Capability"
+import * as Credential from "@smithers/control/Credential"
+import * as Capability from "@smithers/kernel/Capability"
 import { Effect, Layer, Redacted } from "effect"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import * as Mcp from "../src/Mcp.ts"
-import * as McpAsWorkflow from "../src/McpAsWorkflow.ts"
+import * as McpAsFlow from "../src/McpAsFlow.ts"
 
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/mcp/${name}`, import.meta.url)), "utf8")) as Record<
@@ -71,7 +71,7 @@ const credentialLayer = Credential.Credential.of({
   resolve: () => Effect.succeed(Redacted.make("credential-secret"))
 })
 
-describe("McpAsWorkflow", () => {
+describe("McpAsFlow", () => {
   const capabilities = [Capability.make("fs:read", "/workspace/**")]
 
   it("connects lazily, refreshes on ToolListChanged, and scopes disconnect", async () => {
@@ -79,7 +79,7 @@ describe("McpAsWorkflow", () => {
     const result = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function*() {
-          const wrapper = yield* McpAsWorkflow.make({
+          const wrapper = yield* McpAsFlow.make({
             name: "foreign server",
             transport: script.transport,
             capabilities
@@ -116,7 +116,7 @@ describe("McpAsWorkflow", () => {
     const output = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function*() {
-          const wrapper = yield* McpAsWorkflow.make({
+          const wrapper = yield* McpAsFlow.make({
             name: "auth server",
             transport: script.transport,
             capabilities,
@@ -138,7 +138,7 @@ describe("McpAsWorkflow", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function*() {
-          const wrapper = yield* McpAsWorkflow.make({
+          const wrapper = yield* McpAsFlow.make({
             name: "concurrent",
             transport: script.transport,
             capabilities,
@@ -148,7 +148,7 @@ describe("McpAsWorkflow", () => {
               })
           })
           yield* Effect.all(
-            [wrapper.descriptors(), wrapper.workflows(), wrapper.list()],
+            [wrapper.descriptors(), wrapper.flows(), wrapper.list()],
             { concurrency: "unbounded" }
           )
           expect(script.initializes).toBe(1)
@@ -167,7 +167,7 @@ describe("McpAsWorkflow", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function*() {
-          yield* McpAsWorkflow.make({ name: "interrupt", transport: script.transport, capabilities })
+          yield* McpAsFlow.make({ name: "interrupt", transport: script.transport, capabilities })
           yield* Effect.never
         })
       ).pipe(Effect.timeout(10))
