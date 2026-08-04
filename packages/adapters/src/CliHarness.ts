@@ -228,7 +228,9 @@ const promptSections = (
   const defaults: HarnessPrompt.Sections = {
     worktreeIsolationNotice:
       "Work only inside the host-provided isolated worktree. Do not read or modify sibling worktrees or ambient host paths.",
-    registryToolDisclosure: [registryDisclosure(step), projectionDisclosure].filter((part) => part.length > 0).join("\n\n"),
+    registryToolDisclosure: [registryDisclosure(step), projectionDisclosure].filter((part) => part.length > 0).join(
+      "\n\n"
+    ),
     outputRowJsonContract:
       "Return exactly one UTF-8 JSON object on one line. The object must satisfy the declared output schema; do not wrap it in markdown.",
     schemaCorrectionPrompt:

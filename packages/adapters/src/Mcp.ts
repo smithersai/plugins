@@ -183,8 +183,7 @@ export const ArtifactStore: Context.Service<ArtifactStore, ArtifactStore> = Cont
  * @category constructors
  * @since 0.1.0
  */
-export const makeArtifactStore = (implementation: ArtifactStore): ArtifactStore =>
-  ArtifactStore.of(implementation)
+export const makeArtifactStore = (implementation: ArtifactStore): ArtifactStore => ArtifactStore.of(implementation)
 
 /**
  * Provides content-addressed MCP artifact storage.
@@ -224,8 +223,7 @@ export const makeArtifactStoreMemory = (): ArtifactStore => {
  * @category layers
  * @since 0.1.0
  */
-export const layerArtifactStoreMemory = (): Layer.Layer<ArtifactStore> =>
-  layerArtifactStore(makeArtifactStoreMemory())
+export const layerArtifactStoreMemory = (): Layer.Layer<ArtifactStore> => layerArtifactStore(makeArtifactStoreMemory())
 
 /**
  * A transport notification callback.

@@ -156,9 +156,9 @@ const envelope = (seat: SeatCapabilities): ResolvedSeat => {
   if (seat instanceof Set) return { strings: seat, patterns: [] }
   if (isStructuredSeat(seat)) {
     return {
-    strings: new Set(seat.envelope ?? seat.capabilities ?? []),
-    patterns: seat.capabilityEnvelope ?? [],
-    visibility: seat.visibility
+      strings: new Set(seat.envelope ?? seat.capabilities ?? []),
+      patterns: seat.capabilityEnvelope ?? [],
+      visibility: seat.visibility
     }
   }
   return { strings: new Set(seat), patterns: [] }

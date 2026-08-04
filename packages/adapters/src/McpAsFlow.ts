@@ -18,7 +18,7 @@ import {
   SchemaRefModule,
   SchemaRefNone
 } from "@smithers/registry/Descriptor"
-import { Context, Effect, Layer, Option, Redacted, Schema, Semaphore, type Scope } from "effect"
+import { Context, Effect, Layer, Option, Redacted, Schema, type Scope, Semaphore } from "effect"
 import * as Mcp from "./Mcp.ts"
 
 /**
@@ -281,13 +281,11 @@ export const make = (
         Effect.catchTag("flows/adapters/McpError", (cause) =>
           cause.code === "needs_auth"
             ? publish([authEntry]).pipe(Effect.as([authEntry]))
-            : Effect.fail(cause)
-        )
+            : Effect.fail(cause))
       )
     const descriptors = (): Effect.Effect<ReadonlyArray<FlowDescriptor>, Mcp.McpError> =>
       visibleAfterConnect().pipe(Effect.map((available) => available.map((entry) => entry.descriptor)))
-    const flows = (): Effect.Effect<ReadonlyArray<Flow>, Mcp.McpError> =>
-      visibleAfterConnect()
+    const flows = (): Effect.Effect<ReadonlyArray<Flow>, Mcp.McpError> => visibleAfterConnect()
     const get = (name: string): Effect.Effect<Flow, Mcp.McpError> =>
       flows().pipe(
         Effect.flatMap((available) => {

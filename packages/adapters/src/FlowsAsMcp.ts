@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import * as Digest from "@smithers/keys/Digest"
 import * as FileSystem from "@smithers/kernel/FileSystem"
+import * as Digest from "@smithers/keys/Digest"
 import { CanonicalJson } from "@smithers/model"
 import { Context, Effect, Layer, type Scope } from "effect"
 import type * as CliHarness from "./CliHarness.ts"
@@ -148,10 +148,12 @@ export const layerServer = (implementation: Server): Layer.Layer<Server> =>
 export const makeServerNoop = (): Server =>
   makeServer({
     serve: () =>
-      Effect.fail(new ProjectionError({
-        code: "unsupported",
-        message: "no MCP projection server host is configured"
-      }))
+      Effect.fail(
+        new ProjectionError({
+          code: "unsupported",
+          message: "no MCP projection server host is configured"
+        })
+      )
   })
 
 /**

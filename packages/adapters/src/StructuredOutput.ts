@@ -162,7 +162,9 @@ const validateAt = (
     }
   }
 
-  if (Array.isArray(value) && (schema.items === true || schema.items === false || asRecord(schema.items) !== undefined)) {
+  if (
+    Array.isArray(value) && (schema.items === true || schema.items === false || asRecord(schema.items) !== undefined)
+  ) {
     for (let index = 0; index < value.length; index++) {
       validateAt(value[index], schema.items as JsonSchema, `${path}[${index}]`, diagnostics)
     }

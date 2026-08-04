@@ -145,20 +145,18 @@ export class Unsupported extends Schema.TaggedErrorClass<Unsupported>()("flows/a
  * @category errors
  * @since 0.1.0
  */
-export class StructuredOutputFailure
-  extends Schema.TaggedErrorClass<StructuredOutputFailure>()(
-    "flows/adapters/StructuredOutputFailure",
-    {
-      code: code("structured_output_failed"),
-      message: Schema.String,
-      schemaDigest: Schema.String,
-      correctionCount: Schema.Int,
-      correctionLimit: Schema.Int,
-      candidateDigest: Schema.optional(Schema.String),
-      diagnostics: Schema.Array(Schema.String)
-    }
-  )
-{}
+export class StructuredOutputFailure extends Schema.TaggedErrorClass<StructuredOutputFailure>()(
+  "flows/adapters/StructuredOutputFailure",
+  {
+    code: code("structured_output_failed"),
+    message: Schema.String,
+    schemaDigest: Schema.String,
+    correctionCount: Schema.Int,
+    correctionLimit: Schema.Int,
+    candidateDigest: Schema.optional(Schema.String),
+    diagnostics: Schema.Array(Schema.String)
+  }
+) {}
 
 /**
  * Every typed failure a CLI adapter may return.

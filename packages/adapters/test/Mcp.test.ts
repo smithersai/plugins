@@ -14,9 +14,10 @@ describe("Mcp", () => {
   const runDemux = (
     result: Mcp.CallResult,
     options: Mcp.DemuxOptions = {}
-  ) => Mcp.demuxResult(result, options).pipe(
-    Effect.provideService(Mcp.ArtifactStore, Mcp.makeArtifactStoreMemory())
-  )
+  ) =>
+    Mcp.demuxResult(result, options).pipe(
+      Effect.provideService(Mcp.ArtifactStore, Mcp.makeArtifactStoreMemory())
+    )
 
   it("uses a permissive object schema for malformed inputSchema values", () => {
     const tools = Mcp.parseTools(fixture("malformed-schema.json").tools as ReadonlyArray<unknown>)
