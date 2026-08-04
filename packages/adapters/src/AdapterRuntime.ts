@@ -8,14 +8,15 @@
  *
  * @since 0.1.0
  */
-import * as EngineLike from "@smithers/harness/EngineLike"
-import * as Harness from "@smithers/harness/Harness"
+import type * as EngineLike from "@smithers/harness/EngineLike"
+import type * as Harness from "@smithers/harness/Harness"
 import { Context, Effect, HashMap, Layer, Option } from "effect"
 import * as AdapterError from "./AdapterError.ts"
 import { spec as claudeCodeSpec } from "./ClaudeCode.ts"
 import * as CliHarness from "./CliHarness.ts"
 import { spec as codexSpec } from "./Codex.ts"
 import * as HarnessCapabilities from "./HarnessCapabilities.ts"
+import { spec as openCodeSpec } from "./OpenCode.ts"
 
 /**
  * Built-in declarative CLI harness specifications keyed by capability name.
@@ -25,7 +26,8 @@ import * as HarnessCapabilities from "./HarnessCapabilities.ts"
  */
 export const builtInSpecs: HashMap.HashMap<string, CliHarness.Spec> = HashMap.make(
   [claudeCodeSpec.capabilities.name, claudeCodeSpec],
-  [codexSpec.capabilities.name, codexSpec]
+  [codexSpec.capabilities.name, codexSpec],
+  [openCodeSpec.capabilities.name, openCodeSpec]
 )
 
 /**
@@ -36,7 +38,8 @@ export const builtInSpecs: HashMap.HashMap<string, CliHarness.Spec> = HashMap.ma
  */
 export const builtInCapabilities = HarnessCapabilities.makeRegistry([
   claudeCodeSpec.capabilities,
-  codexSpec.capabilities
+  codexSpec.capabilities,
+  openCodeSpec.capabilities
 ])
 
 /**
@@ -132,10 +135,8 @@ export const layer: Layer.Layer<AdapterRuntime> = Layer.succeed(AdapterRuntime, 
  */
 export const makeNoop = (): AdapterRuntime =>
   AdapterRuntime.of({
-    resolve: (name) =>
-      Effect.fail(new AdapterError.Unsupported({ message: `Harness ${name} is not registered` })),
-    harness: (name) =>
-      Effect.fail(new AdapterError.Unsupported({ message: `Harness ${name} is not registered` }))
+    resolve: (name) => Effect.fail(new AdapterError.Unsupported({ message: `Harness ${name} is not registered` })),
+    harness: (name) => Effect.fail(new AdapterError.Unsupported({ message: `Harness ${name} is not registered` }))
   })
 
 /**

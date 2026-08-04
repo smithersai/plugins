@@ -110,3 +110,9 @@ export * as ClaudeCode from "./ClaudeCode.ts"
  * @since 0.1.0
  */
 export * as Codex from "./Codex.ts"
+
+/**
+ * @category adapters
+ * @since 0.1.0
+ */
+export * as OpenCode from "./OpenCode.ts"
