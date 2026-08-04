@@ -153,9 +153,120 @@ const usageRecord = (value: unknown): CliRecord | null => {
     ...(typeof value.input_tokens === "number" ? { input_tokens: value.input_tokens } : {}),
     ...(typeof value.output_tokens === "number" ? { output_tokens: value.output_tokens } : {}),
     ...(typeof value.cached_input_tokens === "number" ? { cachedInputTokens: value.cached_input_tokens } : {}),
+    ...(typeof value.cache_write_input_tokens === "number" ? { cacheWriteTokens: value.cache_write_input_tokens } : {}),
     ...(typeof value.reasoning_tokens === "number" ? { reasoning_tokens: value.reasoning_tokens } : {}),
+    ...(typeof value.reasoning_output_tokens === "number" ? { reasoning_tokens: value.reasoning_output_tokens } : {}),
     ...(typeof value.total_tokens === "number" ? { total_tokens: value.total_tokens } : {})
   }
+}
+
+const encode = (value: unknown): string => JSON.stringify(value ?? {})
+
+/**
+ * Item variants below are derived from the exec `--json` wire schema in
+ * `reference/codex/codex-rs/exec/src/exec_events.rs` (`ThreadItemDetails`,
+ * serde-tagged on `type`, snake_case fields). Tool names follow Codex's own
+ * tool surface (`shell_command`, `apply_patch`, `update_plan`) so rendered
+ * cards match what the native TUI shows.
+ */
+const interpretItem = (eventType: string, item: Readonly<Record<string, unknown>>): CliRecord | null => {
+  const itemType = asString(item.type)
+  const itemId = asString(item.id)
+  if (itemType === "agent_message") {
+    const text = asString(item.text)
+    if (text === undefined || text.length === 0) return null
+    return eventType === "item.completed"
+      ? { type: "settled", assistantText: text, responseId: itemId }
+      : { type: "delta", text }
+  }
+  if (itemType === "reasoning") {
+    const thinking = asString(item.text)
+    return thinking === undefined || thinking.length === 0 ? null : { type: "delta", thinking }
+  }
+  if (itemType === "mcp_tool_call") {
+    const server = asString(item.server)
+    const tool = asString(item.tool)
+    if (tool === undefined) return null
+    return {
+      type: "delta",
+      toolCall: {
+        name: server === undefined ? tool : `${server}.${tool}`,
+        ...(itemId === undefined ? {} : { id: itemId }),
+        arguments: encode(item.arguments)
+      }
+    }
+  }
+  if (itemType === "web_search") {
+    const query = asString(item.query)
+    return query === undefined ? null : { type: "delta", toolCall: { name: "web_search", arguments: query } }
+  }
+  if (itemType === "command_execution") {
+    const command = asString(item.command)
+    if (command === undefined) return null
+    const status = asString(item.status)
+    if (eventType !== "item.completed" || status === "in_progress") {
+      return {
+        type: "delta",
+        toolCall: {
+          name: "shell_command",
+          ...(itemId === undefined ? {} : { id: itemId }),
+          arguments: encode({ command })
+        }
+      }
+    }
+    return {
+      type: "toolResult",
+      name: "shell_command",
+      ...(itemId === undefined ? {} : { id: itemId }),
+      arguments: encode({ command }),
+      status: status === "failed" || status === "declined" ? "error" : "completed",
+      output: JSON.stringify({
+        output: asString(item.aggregated_output) ?? "",
+        exitCode: typeof item.exit_code === "number" ? item.exit_code : null,
+        status: status ?? "completed"
+      })
+    }
+  }
+  if (itemType === "file_change") {
+    const changes = Array.isArray(item.changes) ? item.changes : []
+    const status = asString(item.status)
+    return {
+      type: "toolResult",
+      name: "apply_patch",
+      ...(itemId === undefined ? {} : { id: itemId }),
+      arguments: JSON.stringify({ changes }),
+      status: status === "failed" ? "error" : "completed",
+      output: JSON.stringify({ changes, status: status ?? "completed" })
+    }
+  }
+  if (itemType === "todo_list") {
+    const items = (Array.isArray(item.items) ? item.items : []).flatMap((entry) => {
+      if (!isRecord(entry)) return []
+      const text = asString(entry.text)
+      return text === undefined ? [] : [{ text, status: entry.completed === true ? "completed" : "pending" }]
+    })
+    return {
+      type: "delta",
+      toolCall: {
+        name: "update_plan",
+        ...(itemId === undefined ? {} : { id: itemId }),
+        arguments: JSON.stringify({ items })
+      }
+    }
+  }
+  if (itemType === "collab_tool_call") {
+    const tool = asString(item.tool)
+    if (tool === undefined) return null
+    return {
+      type: "delta",
+      toolCall: {
+        name: `collab.${tool}`,
+        ...(itemId === undefined ? {} : { id: itemId }),
+        arguments: encode({ prompt: asString(item.prompt) })
+      }
+    }
+  }
+  return null
 }
 
 const interpret = (jsonLine: unknown): CliRecord | null => {
@@ -181,37 +292,7 @@ const interpret = (jsonLine: unknown): CliRecord | null => {
   if (type !== "item.started" && type !== "item.updated" && type !== "item.completed") return null
   const item = asRecord(payload.item)
   if (item === undefined) return null
-  const itemType = asString(item.type)
-  if (itemType === "agent_message") {
-    const text = asString(item.text)
-    if (text === undefined || text.length === 0) return null
-    return type === "item.completed"
-      ? { type: "settled", assistantText: text, responseId: asString(item.id) }
-      : { type: "delta", text }
-  }
-  if (itemType === "reasoning") {
-    const thinking = asString(item.text)
-    return thinking === undefined || thinking.length === 0 ? null : { type: "delta", thinking }
-  }
-  if (itemType === "mcp_tool_call") {
-    const server = asString(item.server)
-    const tool = asString(item.tool)
-    if (tool === undefined) return null
-    const encoded = JSON.stringify(item.arguments ?? {})
-    return {
-      type: "delta",
-      toolCall: {
-        name: server === undefined ? tool : `${server}.${tool}`,
-        ...(asString(item.id) === undefined ? {} : { id: asString(item.id) }),
-        ...(encoded === undefined ? {} : { arguments: encoded })
-      }
-    }
-  }
-  if (itemType === "web_search") {
-    const query = asString(item.query)
-    return query === undefined ? null : { type: "delta", toolCall: { name: "web_search", arguments: query } }
-  }
-  return null
+  return interpretItem(type, item)
 }
 
 const preflight = (

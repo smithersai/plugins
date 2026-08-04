@@ -37,7 +37,7 @@ describe("Codex", () => {
     ])
     expect(resumed.args.slice(0, 2)).toEqual([
       "exec",
-      "resume",
+      "resume"
     ])
     expect(resumed.args).toContain("sandbox_mode=\"workspace-write\"")
     expect(resumed.args).toContain(
@@ -60,6 +60,85 @@ describe("Codex", () => {
         { sessionId: "0198a9cf-246c-76a2-8f32-1af472c04bee" }
       )
     ).toThrow("profiles cannot be retained")
+  })
+
+  /**
+   * Fixture values lifted from real local rollouts under ~/.codex/sessions
+   * (exec_command input from rollout-2026-08-04T00-04-06, update_plan steps
+   * from rollout-2026-08-03T20-15-29, patch paths from
+   * rollout-2026-08-03T13-37-57), reshaped into the exec `--json` wire schema
+   * derived from reference/codex/codex-rs/exec/src/exec_events.rs.
+   */
+  it("maps exec item variants into tool calls, results, and usage", () => {
+    const records = fixture("exec-items.jsonl")
+      .map(spec.interpret)
+      .filter((record): record is CliOutput.CliRecord => record !== null)
+
+    expect(records.map((record) => record.type)).toEqual([
+      "resumeToken",
+      "turnOpened",
+      "delta",
+      "toolResult",
+      "delta",
+      "delta",
+      "toolResult",
+      "settled",
+      "usage"
+    ])
+    expect(records[2]).toEqual({
+      type: "delta",
+      toolCall: {
+        name: "shell_command",
+        id: "item_0",
+        arguments: JSON.stringify({ command: "sed -n '1,240p' skills/smithers/SKILL.md" })
+      }
+    })
+    expect(records[3]).toMatchObject({
+      type: "toolResult",
+      name: "shell_command",
+      id: "item_0",
+      status: "completed"
+    })
+    expect(JSON.parse((records[3] as { output: string }).output)).toEqual({
+      output: "# Smithers\nDrive Smithers, a durable control plane for long-running coding agents.",
+      exitCode: 0,
+      status: "completed"
+    })
+    expect(records[5]).toEqual({
+      type: "delta",
+      toolCall: {
+        name: "update_plan",
+        id: "item_1",
+        arguments: JSON.stringify({
+          items: [
+            { text: "Inspect main and lane state; merge smf/full-run-view", status: "completed" },
+            { text: "Resolve conflicts and wire cross-lane integrations", status: "pending" }
+          ]
+        })
+      }
+    })
+    expect(records[6]).toMatchObject({
+      type: "toolResult",
+      name: "apply_patch",
+      id: "item_2",
+      status: "completed"
+    })
+    expect(JSON.parse((records[6] as { output: string }).output)).toEqual({
+      changes: [
+        { path: "package.json", kind: "add" },
+        { path: "tsconfig.json", kind: "add" },
+        { path: "packages/resolver/package.json", kind: "update" }
+      ],
+      status: "completed"
+    })
+    expect(records[8]).toEqual({
+      type: "usage",
+      input_tokens: 1204,
+      output_tokens: 86,
+      cachedInputTokens: 512,
+      cacheWriteTokens: 128,
+      reasoning_tokens: 40
+    })
   })
 
   it("maps recorded success JSONL into resumable semantic records", () => {
