@@ -104,6 +104,37 @@ const toolCallFromContent = (content: unknown): CliToolCall | undefined => {
   return undefined
 }
 
+/**
+ * Thinking blocks on assistant messages and tool_result blocks on user
+ * messages follow the stream-json message shapes captured in real session
+ * transcripts (`~/.claude/projects/<slug>/<session>.jsonl`); see
+ * test/fixtures/claude-code/transcript.ndjson.
+ */
+const thinkingFromContent = (content: unknown): string | undefined => {
+  if (!Array.isArray(content)) return undefined
+  const text = content.flatMap((block) => {
+    if (!isRecord(block) || block.type !== "thinking") return []
+    const value = asString(block.thinking)
+    return value === undefined ? [] : [value]
+  }).join("")
+  return text.length === 0 ? undefined : text
+}
+
+const toolResultFromContent = (content: unknown): CliRecord | undefined => {
+  if (!Array.isArray(content)) return undefined
+  for (const block of content) {
+    if (!isRecord(block) || block.type !== "tool_result") continue
+    const output = textFromContent(block.content) ?? asString(block.content)
+    return {
+      type: "toolResult",
+      ...(asString(block.tool_use_id) === undefined ? {} : { id: asString(block.tool_use_id) }),
+      status: block.is_error === true ? "error" : "completed",
+      ...(output === undefined ? {} : { output })
+    }
+  }
+  return undefined
+}
+
 const isolatedConfigDirectory = (cwd: string | undefined): string => {
   if (cwd === undefined || cwd.length === 0) return ".flows/claude-code"
   const base = cwd === "/" ? "" : cwd.replace(/\/+$/, "")
@@ -195,13 +226,17 @@ const interpret = (jsonLine: unknown): CliRecord | null => {
   if (type === "assistant" || type === "user") {
     const message = asRecord(payload.message)
     if (message === undefined) return null
+    const toolResult = toolResultFromContent(message.content)
+    if (toolResult !== undefined) return toolResult
     const text = textFromContent(message.content)
     const toolCall = toolCallFromContent(message.content)
-    return text === undefined && toolCall === undefined
+    const thinking = thinkingFromContent(message.content)
+    return text === undefined && toolCall === undefined && thinking === undefined
       ? null
       : {
         type: "delta",
         ...(text === undefined ? {} : { text }),
+        ...(thinking === undefined ? {} : { thinking }),
         ...(toolCall === undefined ? {} : { toolCall })
       }
   }

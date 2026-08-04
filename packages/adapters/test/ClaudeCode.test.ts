@@ -58,13 +58,19 @@ describe("ClaudeCode", () => {
       .map(spec.interpret)
       .filter((record): record is CliOutput.CliRecord => record !== null)
 
-    expect(records.map((record) => record.type)).toEqual(["resumeToken", "delta", "settled"])
+    expect(records.map((record) => record.type)).toEqual(["resumeToken", "delta", "toolResult", "settled"])
     expect(records[0]).toEqual({
       type: "resumeToken",
       sessionId: "8f167e9f-15c7-4cb0-9bb7-6d8e29a72572"
     })
     expect(records[1]).toEqual({ type: "delta", text: "I checked the adapter seam." })
-    expect(records[2]).toMatchObject({
+    expect(records[2]).toEqual({
+      type: "toolResult",
+      id: "toolu_01JZ6QQB3NX7E52S09G3HGX8N8",
+      status: "completed",
+      output: "All checks passed."
+    })
+    expect(records[3]).toMatchObject({
       type: "settled",
       assistantText: "The adapter seam is valid.",
       usage: {
@@ -76,6 +82,43 @@ describe("ClaudeCode", () => {
     expect(CliOutput.resolveAnswer(records)).toEqual({
       source: "assistant",
       text: "The adapter seam is valid."
+    })
+  })
+
+  /**
+   * Fixture trimmed and scrubbed from a real captured session transcript
+   * (~/.claude/projects/-Users-williamcory-flows/<session>.jsonl); the
+   * thinking/tool_use/tool_result content-block shapes are what
+   * `--output-format stream-json` emits inside assistant/user envelopes.
+   */
+  it("maps real transcript thinking, tool_use, and tool_result blocks", () => {
+    const records = fixture("transcript.ndjson")
+      .map(spec.interpret)
+      .filter((record): record is CliOutput.CliRecord => record !== null)
+
+    expect(records.map((record) => record.type)).toEqual(["delta", "delta", "toolResult", "delta"])
+    expect(records[0]).toEqual({
+      type: "delta",
+      thinking:
+        "The user is asking me to provide a status line about the current activity of a coding agent. This is a brief, real-time status update."
+    })
+    expect(records[1]).toEqual({
+      type: "delta",
+      toolCall: {
+        name: "Bash",
+        id: "toolu_01UPG3DkUJfUGZLkB32iTE34",
+        arguments: JSON.stringify({ command: "git status --short", description: "Show working copy status" })
+      }
+    })
+    expect(records[2]).toEqual({
+      type: "toolResult",
+      id: "toolu_01UPG3DkUJfUGZLkB32iTE34",
+      status: "completed",
+      output: "M plugins/packages/adapters/src/Codex.ts"
+    })
+    expect(records[3]).toEqual({
+      type: "delta",
+      text: "One modified file is staged for the adapter change."
     })
   })
 
