@@ -117,6 +117,26 @@ export interface CliClosed {
   readonly outcome?: "continue" | "resolved" | "aborted" | "suspended" | undefined
 }
 
+/**
+ * A completed tool execution reported by a CLI. Unlike {@link CliDelta} tool
+ * calls, which only stream invocation arguments, this record carries the
+ * tool's result so the UI can render output cards and diffs. Records carry
+ * complete (non-incremental) `arguments` JSON, so normalization re-states the
+ * call before emitting the result.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface CliToolResult {
+  readonly type: "toolResult"
+  readonly id?: string | undefined
+  /** When omitted (e.g. Claude tool_result blocks carry only tool_use_id) no fresh tool-call-start is emitted. */
+  readonly name?: string | undefined
+  readonly arguments?: string | undefined
+  readonly status: "completed" | "error"
+  readonly output?: string | undefined
+}
+
 /** The vendor-neutral output record understood by this package.
  * @category models
  * @since 0.1.0
@@ -128,6 +148,7 @@ export type CliRecord =
   | CliUsage
   | CliSettled
   | CliResolved
+  | CliToolResult
   | CliClosed
 
 /** An incremental decoder for UTF-8 text and CR/LF-delimited lines.
@@ -382,6 +403,31 @@ export const normalizeRecord = (
           message: settledMessage(record.assistantText ?? textOf(record.structured))
         })
       ]
+    case "toolResult": {
+      const toolId = record.id ?? `${id}:tool`
+      const events: Array<AgentEvent.AgentEvent> = []
+      if (record.name !== undefined) {
+        events.push(modelDelta(ModelEvent.ModelEvent.ToolCallStart({
+          type: "tool-call-start",
+          id: toolId,
+          name: record.name
+        })))
+      }
+      if (record.arguments !== undefined) {
+        events.push(modelDelta(ModelEvent.ModelEvent.ToolCallDelta({
+          type: "tool-call-delta",
+          id: toolId,
+          arguments: record.arguments
+        })))
+      }
+      events.push(modelDelta(ModelEvent.ModelEvent.ToolResult({
+        type: "tool-result",
+        id: toolId,
+        output: record.output ?? "",
+        ...(record.status === "error" ? { isError: true } : {})
+      })))
+      return events
+    }
     case "closed":
       return [
         new AgentEvent.TurnClosed({

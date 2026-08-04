@@ -47,6 +47,34 @@ describe("CliOutput", () => {
     expect(deltas[2]).toMatchObject({ delta: { type: "usage", inputTokens: 7, outputTokens: 3, cachedInputTokens: 2 } })
   })
 
+  it("normalizes tool results into call and result deltas", () => {
+    const events = normalizeRecords([
+      {
+        type: "toolResult",
+        id: "call-1",
+        name: "shell_command",
+        arguments: "{\"command\":\"ls\"}",
+        status: "completed",
+        output: "{\"output\":\"file.ts\",\"exitCode\":0}"
+      },
+      { type: "toolResult", id: "call-2", status: "error", output: "boom" }
+    ], "step")
+    expect(events.map((event) => event._tag)).toEqual([
+      "model-delta",
+      "model-delta",
+      "model-delta",
+      "model-delta"
+    ])
+    expect(events[0]).toMatchObject({ delta: { type: "tool-call-start", id: "call-1", name: "shell_command" } })
+    expect(events[1]).toMatchObject({
+      delta: { type: "tool-call-delta", id: "call-1", arguments: "{\"command\":\"ls\"}" }
+    })
+    expect(events[2]).toMatchObject({
+      delta: { type: "tool-result", id: "call-1", output: "{\"output\":\"file.ts\",\"exitCode\":0}" }
+    })
+    expect(events[3]).toMatchObject({ delta: { type: "tool-result", id: "call-2", output: "boom", isError: true } })
+  })
+
   it("normalizes usage into the model usage shape", () => {
     expect(
       normalizeUsage({
