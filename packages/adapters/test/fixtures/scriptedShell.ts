@@ -3,9 +3,10 @@
  *
  * @since 0.1.0
  */
+import { ShellError } from "@smithers/host/HostError"
 import * as FileSystem from "@smithers/kernel/FileSystem"
 import * as Shell from "@smithers/kernel/Shell"
-import { Effect, Layer, Stream } from "effect"
+import { Effect, Layer, PlatformError, Stream } from "effect"
 
 /**
  * One buffered command result replayed by the scripted Shell.
@@ -20,6 +21,10 @@ export interface Script {
   readonly exitCode?: number | undefined
   readonly hang?: boolean | undefined
   readonly hangAfterOutput?: boolean | undefined
+  /** Fails the host boundary itself, as a missing binary or denied spawn does. */
+  readonly spawnError?: string | undefined
+  /** Ends the stream without the exit sentinel, as a killed shell does. */
+  readonly omitExit?: boolean | undefined
 }
 
 /**
@@ -51,12 +56,17 @@ export interface Fixture {
 /**
  * Constructs a Shell.makeNoop-style layer which replays buffered results.
  *
+ * `files` are readable; `unreadable` paths fail with a typed platform error the
+ * way an absent or unreadable host file does. A path in neither list dies, so a
+ * test which reads a path it never declared fails loudly.
+ *
  * @category constructors
  * @since 0.1.0
  */
 export const make = (
   scripts: ReadonlyArray<Script>,
-  files: Readonly<Record<string, string>> = {}
+  files: Readonly<Record<string, string>> = {},
+  unreadable: ReadonlyArray<string> = []
 ): Fixture => {
   const remaining = [...scripts]
   const recorder: Recorder = {
@@ -98,6 +108,15 @@ export const make = (
           recorder.stdin.push(options?.stdin)
           recorder.environments.push(options?.env)
           if (script === undefined) return Stream.die(`No scripted result for ${command}`)
+          if (script.spawnError !== undefined) {
+            return Stream.fail(
+              new ShellError({
+                code: "spawn_error",
+                message: script.spawnError,
+                command
+              })
+            )
+          }
           const encoder = new TextEncoder()
           const stdout = script.stdoutChunks ?? (script.stdout === undefined ? [] : [script.stdout])
           const chunks = [
@@ -122,6 +141,7 @@ export const make = (
               )
             )
           }
+          if (script.omitExit === true) return output
           return output.pipe(
             Stream.concat(
               Stream.succeed({
@@ -133,9 +153,18 @@ export const make = (
         })
       )
   })
+  const unreadablePaths = new Set(unreadable)
   const fileSystem = FileSystem.layerNoop({
     readFileString: (path) =>
-      files[path] === undefined
+      unreadablePaths.has(path)
+        ? Effect.fail(
+          PlatformError.badArgument({
+            module: "FileSystem",
+            method: "readFileString",
+            description: `Scripted read failure for ${path}`
+          })
+        )
+        : files[path] === undefined
         ? Effect.die(`Missing scripted file ${path}`)
         : Effect.succeed(files[path]),
     remove: (path) =>

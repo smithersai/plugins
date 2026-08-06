@@ -167,6 +167,15 @@ const harnessFailure = (
   cause?: unknown
 ): HarnessError => new HarnessError({ code, message, cause })
 
+const asAdapterError = (error: unknown): AdapterError.AdapterError | undefined =>
+  typeof error === "object"
+    && error !== null
+    && "_tag" in error
+    && typeof error._tag === "string"
+    && error._tag.startsWith("flows/adapters/")
+    ? error as AdapterError.AdapterError
+    : undefined
+
 const modelFromSeat = (seat: string): string => {
   const separator = seat.indexOf(":")
   return separator < 0 ? seat : seat.slice(separator + 1)
@@ -707,15 +716,9 @@ const preflight = (
       })
       yield* Effect.suspend(() => spec.preflight?.(shell, environment) ?? Effect.void).pipe(
         Effect.mapError((error) =>
-          typeof error === "object"
-            && error !== null
-            && "_tag" in error
-            && typeof error._tag === "string"
-            && error._tag.startsWith("flows/adapters/")
-            ? error as AdapterError.AdapterError
-            : new AdapterError.SpawnFailed({
-              message: `Preflight failed for ${spec.capabilities.name}`
-            })
+          asAdapterError(error) ?? new AdapterError.SpawnFailed({
+            message: `Preflight failed for ${spec.capabilities.name}`
+          })
         )
       )
     })
@@ -981,11 +984,16 @@ const run = (
   ).pipe(
     Stream.scoped,
     Stream.provide(host),
-    Stream.mapError((error) =>
-      error instanceof HarnessError
-        ? error
-        : harnessFailure("model_failed", "CLI harness failed", error)
-    )
+    // Adapter failures raised before the first attempt — projection, preflight,
+    // and output-contract setup — must keep their typed code so Run Ownership
+    // can tell a missing binary or an invalid config from a model failure.
+    Stream.mapError((error) => {
+      if (error instanceof HarnessError) return error
+      const adapterError = asAdapterError(error)
+      return adapterError === undefined
+        ? harnessFailure("model_failed", "CLI harness failed", error)
+        : AdapterError.toHarnessError(adapterError)
+    })
   )
   return program
 }
