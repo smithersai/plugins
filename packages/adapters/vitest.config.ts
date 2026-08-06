@@ -9,11 +9,14 @@ export default defineConfig({
     coverage: {
       enabled: true,
       provider: "v8",
+      // Raised to the measured floor of the hardened suite (92.20 / 79.77 /
+      // 95.19 / 94.94), less a small margin. Raise these again rather than
+      // lowering them when coverage improves.
       thresholds: {
-        statements: 80,
-        branches: 65,
-        functions: 78,
-        lines: 84
+        statements: 91,
+        branches: 78,
+        functions: 94,
+        lines: 93
       }
     }
   }
