@@ -110,9 +110,11 @@ describe("Projection", () => {
       const patterns = [new Capability.CapabilityPattern({ action: "fs:read", resource: "/a*" })]
       expect(await visibleNames({ capabilityEnvelope: patterns })).toEqual(["read"])
       // A pattern whose resource does not match leaves the flow out.
-      expect(await visibleNames({
-        capabilityEnvelope: [new Capability.CapabilityPattern({ action: "fs:read", resource: "/other" })]
-      })).toEqual([])
+      expect(
+        await visibleNames({
+          capabilityEnvelope: [new Capability.CapabilityPattern({ action: "fs:read", resource: "/other" })]
+        })
+      ).toEqual([])
       // An unparseable requirement can never be admitted by a pattern.
       expect(
         (await run([descriptor("odd", ["not-a-capability"])], { capabilityEnvelope: patterns })).descriptors
@@ -130,7 +132,10 @@ describe("Projection", () => {
   })
 
   it("reports an unreadable registry as registry_unavailable", async () => {
-    const failing = { ...registry([]), visible: () => Effect.fail(new Error("registry offline")) } as unknown as Registry
+    const failing = {
+      ...registry([]),
+      visible: () => Effect.fail(new Error("registry offline"))
+    } as unknown as Registry
     await expect(
       Effect.runPromise(
         select(failing, []).pipe(

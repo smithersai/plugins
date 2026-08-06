@@ -68,4 +68,42 @@ describe("Env", () => {
       FLOWS_ATTEMPT: "2"
     })
   })
+
+  it("accepts a pre-rendered identity environment alongside the structured form", () => {
+    // A caller which already resolved its identity variables passes a plain
+    // environment; it must be applied verbatim rather than treated as empty.
+    expect(
+      Env.merge({ runIdentity: { FLOWS_RUN_ID: "pre-rendered", CUSTOM_TAG: "kept", DROPPED: undefined } })
+    ).toMatchObject({ FLOWS_RUN_ID: "pre-rendered", CUSTOM_TAG: "kept" })
+    expect(Env.merge({ runIdentity: { FLOWS_RUN_ID: "pre-rendered" } })).not.toHaveProperty("DROPPED")
+  })
+
+  it("omits identity variables whose value is absent or empty", () => {
+    const merged = Env.merge({ runIdentity: { runId: "", nodeId: undefined, iteration: "", attempt: 0 } })
+    expect(merged).not.toHaveProperty("FLOWS_RUN_ID")
+    expect(merged).not.toHaveProperty("FLOWS_NODE_ID")
+    expect(merged).not.toHaveProperty("FLOWS_ITERATION")
+    // Attempt zero is a real attempt number and must survive.
+    expect(merged.FLOWS_ATTEMPT).toBe("0")
+  })
+
+  it("produces only the blanked keys when every layer is absent", () => {
+    expect(Env.merge({})).toEqual({
+      CLAUDECODE: "",
+      CLAUDE_CODE_ENTRYPOINT: "",
+      ANTHROPIC_API_KEY: "",
+      OPENAI_API_KEY: ""
+    })
+  })
+
+  it("retains only the baseline inherited keys from the process environment", () => {
+    expect(
+      Env.merge({ processEnv: { PATH: "/bin", HOME: "/h", LANG: "en", TERM: "xterm", SECRET_TOKEN: "leak" } })
+    ).toMatchObject({ PATH: "/bin", HOME: "/h", LANG: "en", TERM: "xterm" })
+    expect(Env.merge({ processEnv: { SECRET_TOKEN: "leak" } })).not.toHaveProperty("SECRET_TOKEN")
+  })
+
+  it("renders a missing diagnostic value as an empty string rather than undefined", () => {
+    expect(Env.redactForDiagnostics({ PLAIN: undefined })).toEqual({ PLAIN: "" })
+  })
 })

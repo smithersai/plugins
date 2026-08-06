@@ -1,6 +1,9 @@
+import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import {
+  decodeLines,
   decodeNdjsonChunks,
+  decodeNdjsonStream,
   makeLineDecoder,
   normalizeRecord,
   normalizeRecords,
@@ -156,6 +159,30 @@ describe("CliOutput", () => {
       const bytes = new TextEncoder().encode("你好\n")
       expect(decoder.push(bytes.slice(0, 2))).toEqual([])
       expect([...decoder.push(bytes.slice(2)), ...decoder.finish()]).toEqual(["你好"])
+    })
+  })
+
+  describe("decodeNdjsonStream", () => {
+    const collect = (chunks: ReadonlyArray<Uint8Array>) =>
+      Effect.runPromise(
+        decodeNdjsonStream(Stream.fromArray(chunks)).pipe(Stream.runCollect, Effect.map(Array.from))
+      )
+
+    it("splits lines across byte-chunk boundaries in the Effect stream form", async () => {
+      const bytes = new TextEncoder().encode("{\"a\":1}\n{\"b\":2}\n")
+      expect(await collect([bytes.slice(0, 4), bytes.slice(4, 11), bytes.slice(11)])).toEqual([
+        "{\"a\":1}",
+        "{\"b\":2}"
+      ])
+    })
+
+    it("reassembles a multi-byte character split across chunks", async () => {
+      const bytes = new TextEncoder().encode("café\nnext\n")
+      expect(await collect([bytes.slice(0, 4), bytes.slice(4)])).toEqual(["café", "next"])
+    })
+
+    it("is re-exported under the decodeLines alias", () => {
+      expect(decodeLines).toBe(decodeNdjsonStream)
     })
   })
 

@@ -34,4 +34,22 @@ describe("AdapterRuntime", () => {
     )
     expect(Effect.runSyncExit(runtime.resolve("unsafe", { multiSeat: true }))._tag).toBe("Failure")
   })
+
+  it("reports every harness as unregistered on the noop runtime", () => {
+    const runtime = AdapterRuntime.makeNoop()
+    expect(Effect.runSync(Effect.flip(runtime.resolve("codex")))).toMatchObject({
+      _tag: "flows/adapters/Unsupported",
+      message: "Harness codex is not registered"
+    })
+    expect(Effect.runSync(Effect.flip(runtime.harness("claude-code")))).toMatchObject({
+      _tag: "flows/adapters/Unsupported",
+      message: "Harness claude-code is not registered"
+    })
+  })
+
+  it("fails to resolve a name absent from the registry", () => {
+    expect(Effect.runSync(Effect.flip(AdapterRuntime.make().resolve("not-a-harness")))).toMatchObject({
+      _tag: "flows/adapters/Unsupported"
+    })
+  })
 })

@@ -456,7 +456,10 @@ describe("Codex", () => {
 
     it("namespaces a collab tool call and requires a tool name", () => {
       expect(
-        spec.interpret({ type: "item.started", item: { type: "collab_tool_call", id: "x-1", tool: "ask", prompt: "hi" } })
+        spec.interpret({
+          type: "item.started",
+          item: { type: "collab_tool_call", id: "x-1", tool: "ask", prompt: "hi" }
+        })
       ).toEqual({
         type: "delta",
         toolCall: { name: "collab.ask", id: "x-1", arguments: JSON.stringify({ prompt: "hi" }) }

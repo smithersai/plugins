@@ -84,4 +84,73 @@ describe("FlowsAsSkills", () => {
       }
     })
   })
+
+  it("refuses to render or mount for a harness which installs no skills", async () => {
+    const failure = await Effect.runPromise(Effect.flip(render(selection, { skillsInstall: "none" })))
+    expect(failure).toMatchObject({
+      _tag: "flows/adapters/ProjectionError",
+      code: "unsupported",
+      message: "the harness does not support skill installation"
+    })
+    const rendered = await Effect.runPromise(render(selection, { skillsInstall: "plugin-dir" }))
+    const mountFailure = await Effect.runPromise(
+      Effect.scoped(
+        Effect.flip(
+          mount(rendered, { skillsInstall: "none" }).pipe(
+            Effect.provideService(
+              FileSystem.FileSystem,
+              FileSystem.makeNoop({
+                makeTempDirectoryScoped: () => Effect.die("must not create a directory"),
+                makeDirectory: () => Effect.die("must not create a directory"),
+                writeFileString: () => Effect.die("must not write")
+              })
+            )
+          )
+        )
+      )
+    )
+    expect(mountFailure).toMatchObject({ code: "unsupported" })
+  })
+
+  describe("host failures during installation", () => {
+    const rendering = () => Effect.runPromise(render(selection, { skillsInstall: "home-dir" }))
+
+    const installWith = async (fs: FileSystem.FileSystem) =>
+      Effect.runPromise(
+        Effect.scoped(Effect.flip(install(await rendering()).pipe(Effect.provideService(FileSystem.FileSystem, fs))))
+      )
+
+    it("reports an unusable temporary root as an invalid request", async () => {
+      const failure = await installWith(FileSystem.makeNoop({
+        makeTempDirectoryScoped: () => Effect.fail("no temp space") as never,
+        makeDirectory: () => Effect.void,
+        writeFileString: () => Effect.void
+      }))
+      expect(failure).toMatchObject({ code: "invalid_request", message: "could not create skill directory" })
+    })
+
+    it("names the directory it could not create", async () => {
+      const failure = await installWith(FileSystem.makeNoop({
+        makeTempDirectoryScoped: () => Effect.succeed("/tmp/flows-skills"),
+        makeDirectory: () => Effect.fail("read-only") as never,
+        writeFileString: () => Effect.void
+      }))
+      expect(failure).toMatchObject({
+        code: "invalid_request",
+        message: "could not create /tmp/flows-skills/.codex/skills/inspect"
+      })
+    })
+
+    it("names the skill file it could not write", async () => {
+      const failure = await installWith(FileSystem.makeNoop({
+        makeTempDirectoryScoped: () => Effect.succeed("/tmp/flows-skills"),
+        makeDirectory: () => Effect.void,
+        writeFileString: () => Effect.fail("disk full") as never
+      }))
+      expect(failure).toMatchObject({
+        code: "invalid_request",
+        message: "could not write .codex/skills/inspect/SKILL.md"
+      })
+    })
+  })
 })

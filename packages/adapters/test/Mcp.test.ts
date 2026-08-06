@@ -407,5 +407,90 @@ describe("Mcp", () => {
       expect(Mcp.isToolListChanged({ method: "ToolListChanged" })).toBe(true)
       expect(Mcp.isToolListChanged({ method: "notifications/message" })).toBe(false)
     })
+
+    it("prefixes and disambiguates an unnamed tool in a list", () => {
+      const tools = Mcp.parseTools([{ description: "first" }, { name: 42 }, { name: "real" }], "srv")
+      // A non-string name degrades to the same "unnamed" stem, so the collision
+      // suffix is what keeps the projected names reversible.
+      expect(tools.map((tool) => tool.safeName)).toEqual(["srv_unnamed", "srv_unnamed_2", "srv_real"])
+    })
+
+    it("orders equal names by their original index so parsing is deterministic", () => {
+      const first = Mcp.parseTools([{ name: "same", description: "a" }, { name: "same", description: "b" }])
+      expect(first.map((tool) => tool.safeName)).toEqual(["same", "same_2"])
+      expect(first.map((tool) => tool.description)).toEqual(["a", "b"])
+    })
+  })
+
+  describe("media content", () => {
+    const mediaOf = (part: unknown) => Effect.runSync(runDemux({ content: [part] } as Mcp.CallResult)).media[0]
+
+    it("reads a payload from resource text or a uri when no blob is present", () => {
+      expect(mediaOf({ type: "resource", resource: { text: "inline body" } })?.sizeBytes)
+        .toBe("inline body".length)
+      expect(mediaOf({ type: "resource_link", resource: { uri: "file:///a.txt" } })?.sizeBytes)
+        .toBe("file:///a.txt".length)
+      expect(mediaOf({ type: "resource_link", uri: "file:///b.txt" })?.sizeBytes).toBe("file:///b.txt".length)
+      // A part with no payload at all is an empty artifact, not a crash.
+      expect(mediaOf({ type: "blob" })?.sizeBytes).toBe(0)
+    })
+
+    it("serializes a non-string resource payload rather than coercing it", () => {
+      expect(mediaOf({ type: "resource", resource: { text: { nested: true } } })?.sizeBytes)
+        .toBe(JSON.stringify({ nested: true }).length)
+    })
+
+    it("defaults the media type per part kind and honors each declared spelling", () => {
+      expect(mediaOf({ type: "image", data: "" })?.mediaType).toBe("image/*")
+      expect(mediaOf({ type: "blob", data: "" })?.mediaType).toBe("application/octet-stream")
+      expect(mediaOf({ type: "blob", data: "", mimeType: "application/json" })?.mediaType).toBe("application/json")
+      expect(mediaOf({ type: "blob", data: "", mediaType: "application/pdf" })?.mediaType).toBe("application/pdf")
+      expect(mediaOf({ type: "resource", resource: { mimeType: "text/plain", text: "x" } })?.mediaType)
+        .toBe("text/plain")
+      // A declared media type which sanitizes away falls back to the kind default.
+      expect(mediaOf({ type: "blob", data: "", mimeType: "" })?.mediaType).toBe("application/octet-stream")
+    })
+
+    it("rejects a media type outside the allowlist", () => {
+      expect(
+        Effect.runSync(
+          Effect.flip(runDemux({ content: [{ type: "blob", data: "", mimeType: "text/html" }] } as Mcp.CallResult))
+        )
+      ).toMatchObject({ code: "unsupported_content", message: "Unsupported MCP media type: text/html" })
+    })
+
+    it("rejects a content type it does not model", () => {
+      expect(
+        Effect.runSync(Effect.flip(runDemux({ content: [{ type: "video" }] } as Mcp.CallResult)))
+      ).toMatchObject({ code: "unsupported_content", message: "Unsupported MCP content type: video" })
+    })
+
+    it("rejects binary content which is not base64 text", () => {
+      expect(
+        Effect.runSync(Effect.flip(runDemux({ content: [{ type: "blob", data: 42 }] } as Mcp.CallResult)))
+      ).toMatchObject({ code: "protocol_error", message: "MCP binary content is not base64 text" })
+      expect(
+        Effect.runSync(Effect.flip(runDemux({ content: [{ type: "blob", data: "not base64!!" }] } as Mcp.CallResult)))
+      ).toMatchObject({ code: "protocol_error", message: "MCP binary content is not valid base64" })
+    })
+
+    it("names an unnamed media part from the resource, then falls back", () => {
+      expect(mediaOf({ type: "resource", name: "explicit", resource: { name: "ignored", text: "x" } })?.displayName)
+        .toBe("explicit")
+      expect(mediaOf({ type: "resource", resource: { name: "from-name", text: "x" } })?.displayName).toBe("from-name")
+      expect(mediaOf({ type: "resource", resource: { title: "from-title", text: "x" } })?.displayName)
+        .toBe("from-title")
+      expect(mediaOf({ type: "resource", resource: { text: "x" } })?.displayName).toBe("mcp-content")
+    })
+  })
+
+  describe("sanitizeText", () => {
+    it("replaces control characters and trims on a UTF-8 boundary", () => {
+      expect(Mcp.sanitizeText("a\u0000b\u007fc")).toBe("a b c")
+      expect(Mcp.sanitizeText("", 0)).toBe("")
+      expect(Mcp.sanitizeText("abc", 0)).toBe("")
+      // A lone surrogate has no code point; it must not throw.
+      expect(() => Mcp.sanitizeText("\ud800")).not.toThrow()
+    })
   })
 })

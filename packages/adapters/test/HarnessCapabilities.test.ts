@@ -67,4 +67,21 @@ describe("HarnessCapabilities", () => {
       expect(Option.getOrUndefined(HashMap.get(builtInSpecs, name))?.capabilities.name).toBe(name)
     }
   })
+
+  it("evicts a harness from the multi-seat pool when re-registered without isolation", () => {
+    const isolated = HarnessCapabilities.register(HarnessCapabilities.makeRegistry(), capabilities())
+    expect(HashMap.has(isolated.multiSeatRecords, "test-cli")).toBe(true)
+
+    // Re-registering the same name without config-dir isolation must remove the
+    // stale multi-seat entry, not merely skip adding a new one.
+    const downgraded = HarnessCapabilities.register(isolated, capabilities({ configDirIsolation: false }))
+    expect(HashMap.has(downgraded.records, "test-cli")).toBe(true)
+    expect(HashMap.has(downgraded.multiSeatRecords, "test-cli")).toBe(false)
+    // The earlier registry is untouched.
+    expect(HashMap.has(isolated.multiSeatRecords, "test-cli")).toBe(true)
+  })
+
+  it("reports a lookup miss as None", () => {
+    expect(Option.isNone(HarnessCapabilities.lookup(HarnessCapabilities.makeRegistry(), "absent"))).toBe(true)
+  })
 })
