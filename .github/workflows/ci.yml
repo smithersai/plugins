@@ -5,41 +5,72 @@ on:
     branches: [main]
   pull_request:
 
+# This repo cannot be built alone. `packages/agent` and `packages/flows` are
+# committed symlinks into the sibling `agent/` and `flows/` checkouts
+# (`.agent-link/packages -> ../../agent/packages`,
+# `.flows-link/packages -> ../../flows/packages`), and every `file:` dependency
+# in package.json resolves through them. Node and TypeScript resolve those
+# links by realpath, so `effect` and `@smithers/*` are looked up in the
+# *sibling's* node_modules — the siblings must be checked out next to this repo
+# AND installed, or `npm run check` fails with hundreds of TS2307s.
+#
+# We get that layout by checking out the superproject (smithersai/monorepo) with
+# its submodules: that pins `agent/` and `flows/` to the exact SHAs the
+# superproject records, so an unrelated push to either repo cannot turn a
+# plugins PR red. This PR's own tree then replaces the pinned `plugins/`
+# submodule.
+#
+# REQUIRED SECRET: `SUBMODULE_CHECKOUT_TOKEN`. smithersai/monorepo and
+# smithersai/agent are private (smithersai/flows is public), and the default
+# GITHUB_TOKEN is scoped to smithersai/plugins alone, so it 404s on both. The
+# secret must be a PAT or GitHub App installation token with `contents: read`
+# on smithersai/monorepo, smithersai/agent and smithersai/flows. An `ssh-key:`
+# with the same reach works too.
+
 jobs:
   test:
     name: check + lint + test (coverage gates enforced)
     runs-on: ubuntu-latest
     steps:
-      # plugins depends on @smithers/* packages from the sibling agent and
-      # flows repos via committed symlinks (.agent-link, .flows-link) that
-      # resolve to ../agent/packages and ../flows/packages — check out all
-      # three as siblings so npm ci can resolve the file: links.
+      - name: Check out the superproject (pins agent/ and flows/)
+        uses: actions/checkout@v4
+        with:
+          repository: smithersai/monorepo
+          submodules: true
+          token: ${{ secrets.SUBMODULE_CHECKOUT_TOKEN }}
+          path: superproject
+      - name: Replace the pinned plugins/ submodule with this PR's tree
+        run: rm -rf superproject/plugins
       - uses: actions/checkout@v4
         with:
-          path: plugins
-      - uses: actions/checkout@v4
-        with:
-          repository: smithersai/agent
-          path: agent
-      - uses: actions/checkout@v4
-        with:
-          repository: smithersai/flows
-          path: flows
+          path: superproject/plugins
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: plugins/package-lock.json
-      - run: npm ci
-        working-directory: plugins
+          cache-dependency-path: |
+            superproject/plugins/package-lock.json
+            superproject/agent/package-lock.json
+            superproject/flows/package-lock.json
+      # The siblings need their own node_modules — a fresh checkout has none,
+      # and installing plugins does not populate them.
+      - name: Install sibling agent/
+        run: npm ci
+        working-directory: superproject/agent
+      - name: Install sibling flows/
+        run: npm ci
+        working-directory: superproject/flows
+      - name: Install plugins/
+        run: npm ci
+        working-directory: superproject/plugins
       - name: Typecheck all workspaces
         run: npm run check
-        working-directory: plugins
+        working-directory: superproject/plugins
       - name: Lint all workspaces
         run: npm run lint
-        working-directory: plugins
+        working-directory: superproject/plugins
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
         run: npm test
-        working-directory: plugins
+        working-directory: superproject/plugins
