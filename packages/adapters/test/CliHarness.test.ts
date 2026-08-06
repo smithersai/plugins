@@ -969,4 +969,159 @@ describe("CliHarness", () => {
       expect(noopExit._tag).toBe("Failure")
     })
   })
+
+  describe("projection option merging", () => {
+    const projectedDescriptor = {
+      name: "inspect",
+      description: "Inspect the workspace",
+      capabilities: [],
+      modelInvocable: true,
+      input: { _tag: "None" },
+      output: { _tag: "None" },
+      body: { _tag: "Module", path: "/flows/inspect.ts" },
+      flows: [],
+      effects: { reads: [], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" },
+      path: "/flows/inspect.ts",
+      frontmatter: {},
+      provenance: { source: "test", root: "/flows" }
+    } as FlowDescriptor
+
+    const projectedRegistry = {
+      list: () => Effect.succeed([projectedDescriptor]),
+      visible: () => Effect.succeed([projectedDescriptor]),
+      get: () => Effect.die("unused"),
+      getOption: () => Effect.die("unused"),
+      loadBody: () => Effect.die("unused"),
+      runPrompt: () => Effect.die("unused"),
+      refresh: () => Effect.void,
+      warnings: () => Effect.succeed([])
+    } as Registry
+
+    const projectionOptions = (): CliHarness.ProjectionOptions => ({
+      registry: projectedRegistry,
+      schemaResolver: Projection.makeSchemaResolver(() => Effect.succeed({ type: "object" })),
+      seatCapabilities: () => [],
+      childRunInvoker: () => Effect.succeed({ ok: true }),
+      server: FlowsAsMcp.makeServer({
+        serve: () => Effect.succeed({ transport: "http" as const, url: "http://127.0.0.1:9417/mcp" })
+      })
+    })
+
+    /**
+     * A `home-dir` skills install is the only projection that contributes an
+     * `environment` projection rather than extra argv, so it is the path that
+     * exercises the environment branch of the make-option merge.
+     */
+    it("layers a home-dir skills projection over the caller's environment projection", async () => {
+      const fixture = makeScriptedShell([{
+        stdout: [
+          { type: "settled", assistantText: "merged" },
+          { type: "closed" }
+        ].map((record) => JSON.stringify(record)).join("\n")
+      }])
+      const harness = makeHarness(
+        {
+          ...makeSpec((options) => ({ ...command(), args: ["--json", ...(options.extraArgs ?? [])] })),
+          capabilities: new HarnessCapabilities.HarnessCapabilities({
+            ...capabilities,
+            mcpBootstrap: "inline-config",
+            skillsInstall: "home-dir"
+          })
+        },
+        EngineLike.makeNoop(),
+        {
+          environment: () => ({
+            runIdentity: { runId: "run-9", nodeId: "node-9", iteration: 2, attempt: 1 },
+            credentials: { ANTHROPIC_API_KEY: "secret-key" },
+            userOverrides: { CODEX_HOME: "/caller/home", CALLER_ONLY: "kept" }
+          }),
+          projection: projectionOptions()
+        }
+      )
+      await Effect.runPromise(harness.run(step(), fixture.layer as AgentStep.HostLike).pipe(Stream.runDrain))
+
+      const environment = fixture.recorder.environments[0]
+      // The caller's run identity and credentials survive the merge...
+      expect(environment).toMatchObject({
+        FLOWS_RUN_ID: "run-9",
+        FLOWS_NODE_ID: "node-9",
+        FLOWS_ITERATION: "2",
+        FLOWS_ATTEMPT: "1",
+        ANTHROPIC_API_KEY: "secret-key",
+        CALLER_ONLY: "kept"
+      })
+      // ...but the mounted skills root wins the CODEX_HOME key it owns, since
+      // the projection's override is applied after the caller's.
+      expect(environment?.CODEX_HOME).toMatch(/flows-skills-/)
+      expect(environment?.CODEX_HOME).not.toBe("/caller/home")
+      // The inline MCP config still arrives through the argv projection.
+      expect(fixture.recorder.commands[0]).toContain("mcp_servers.flows.url")
+      // A home-dir install writes .codex skills rather than a plugin dir.
+      expect(fixture.recorder.commands[0]).not.toContain("--plugin-dir")
+      expect(fixture.recorder.writes.some(({ path }) => path.includes("/.codex/skills/inspect/SKILL.md"))).toBe(true)
+    })
+
+    it("accumulates extraArgs from every projection instead of overwriting them", async () => {
+      const fixture = makeScriptedShell([{
+        stdout: [
+          { type: "settled", assistantText: "merged" },
+          { type: "closed" }
+        ].map((record) => JSON.stringify(record)).join("\n")
+      }])
+      const harness = makeHarness(
+        {
+          ...makeSpec((options) => ({ ...command(), args: ["--json", ...(options.extraArgs ?? [])] })),
+          capabilities: new HarnessCapabilities.HarnessCapabilities({
+            ...capabilities,
+            mcpBootstrap: "inline-config",
+            skillsInstall: "plugin-dir"
+          })
+        },
+        EngineLike.makeNoop(),
+        {
+          commandOptions: () => ({ model: "caller-model", extraArgs: ["--caller-flag"] }),
+          projection: projectionOptions()
+        }
+      )
+      await Effect.runPromise(harness.run(step(), fixture.layer as AgentStep.HostLike).pipe(Stream.runDrain))
+
+      const invocation = fixture.recorder.commands[0] ?? ""
+      // All three contributors' argv survive: the caller, the MCP config, and
+      // the plugin directory. A last-writer-wins merge would drop two of them.
+      expect(invocation).toContain("--caller-flag")
+      expect(invocation).toContain("mcp_servers.flows.url")
+      expect(invocation).toContain("--plugin-dir")
+    })
+
+    it("leaves the caller's options untouched when the harness declares no projection surface", async () => {
+      const fixture = makeScriptedShell([{
+        stdout: [
+          { type: "settled", assistantText: "merged" },
+          { type: "closed" }
+        ].map((record) => JSON.stringify(record)).join("\n")
+      }])
+      const harness = makeHarness(
+        {
+          ...makeSpec((options) => ({ ...command(), args: ["--json", ...(options.extraArgs ?? [])] })),
+          capabilities: new HarnessCapabilities.HarnessCapabilities({
+            ...capabilities,
+            mcpBootstrap: "none",
+            skillsInstall: "none"
+          })
+        },
+        EngineLike.makeNoop(),
+        {
+          commandOptions: () => ({ extraArgs: ["--caller-flag"] }),
+          projection: projectionOptions()
+        }
+      )
+      await Effect.runPromise(harness.run(step(), fixture.layer as AgentStep.HostLike).pipe(Stream.runDrain))
+
+      const invocation = fixture.recorder.commands[0] ?? ""
+      expect(invocation).toContain("--caller-flag")
+      expect(invocation).not.toContain("mcp_servers.flows.url")
+      expect(invocation).not.toContain("--plugin-dir")
+      expect(fixture.recorder.writes).toEqual([])
+    })
+  })
 })

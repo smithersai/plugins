@@ -58,6 +58,14 @@ export const defaultPatterns: Patterns = {
     /\brun\s+\/usage-credits\b/i,
     /\bout_of_credits\b/i,
     /\busage_limit_reached\b/i,
+    // Billing exhaustion is a quota condition, not a protocol fault. Without
+    // these the provider wordings below fall through to ProtocolError, which
+    // loses the suspended outcome and the reset timing and instead reads as an
+    // opaque adapter bug — the failure mode that cost a real run hours.
+    /\bcredit\s+balance\s+is\s+too\s+low\b/i,
+    /\binsufficient[_\s-]?quota\b/i,
+    /\binsufficient\s+credits?\b/i,
+    /\bexceeded\s+your\s+current\s+quota\b/i,
     /"rate_limit_event"[\s\S]{0,300}?"status"\s*:\s*"rejected"/i,
     /\b(?:rate[_-]?limit|quota|usage[_-]?limit)[_\s-]*(?:exhausted|reached|exceeded|rejected)\b/i
   ],
@@ -65,7 +73,10 @@ export const defaultPatterns: Patterns = {
     /^You've hit your session limit\s+·\s+resets\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\s+(?:\([^)]+\)|[A-Z]{2,5})\.?$/i,
     /^You're out of usage credits\. Run \/usage-credits to keep using .+$/i,
     /^Claude usage limit reached\. Your limit will reset at \d{1,2}(?::\d{2})?\s*(?:am|pm)\s+(?:\([^)]+\)|[A-Z]{2,5})\.?$/i,
-    /"rate_limit_event"[\s\S]{0,300}?"status"\s*:\s*"rejected"/i
+    /"rate_limit_event"[\s\S]{0,300}?"status"\s*:\s*"rejected"/i,
+    // A CLI which prints a billing failure and still exits 0 has done no work;
+    // anchored so it cannot fire on an agent merely discussing its credits.
+    /^Your credit balance is too low\b[\s\S]*$/i
   ],
   sessionLost: [
     /\b(?:unknown|invalid|missing|expired|stale)\s+(?:resume\s+)?session(?:\s+id)?\b/i,

@@ -364,4 +364,170 @@ describe("CliClassifier", () => {
       expect(isBenignStderr("Update available: 1.2.3", patterns)).toBe(false)
     })
   })
+
+  /**
+   * Regression guard. A billing-exhaustion diagnostic used to fall through
+   * every quota pattern and land on ProtocolError, which drops the suspended
+   * outcome and the reset metadata and presents a spend problem as an opaque
+   * adapter fault. A real run lost hours to that misreading.
+   */
+  describe("billing exhaustion is quota, not a protocol fault", () => {
+    const wordings = [
+      "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+      "You exceeded your current quota, please check your plan and billing details.",
+      "insufficient_quota",
+      "insufficient quota",
+      "Insufficient credits remaining on this account."
+    ]
+
+    it("classifies every provider billing wording as quota exhaustion", () => {
+      for (const stderr of wordings) {
+        for (const patterns of [defaultPatterns, claudeCodePatterns, codexPatterns]) {
+          const error = classify({ exitCode: 1, stderr, patterns })
+          expect(error, stderr).toBeInstanceOf(AdapterError.QuotaExhausted)
+        }
+      }
+    })
+
+    it("suspends on a clean exit that printed only the credit-balance notice", () => {
+      const error = classify({
+        exitCode: 0,
+        stderr: "Your credit balance is too low to access the Anthropic API.",
+        patterns: defaultPatterns
+      })
+      expect(error).toBeInstanceOf(AdapterError.QuotaExhausted)
+    })
+
+    it("does not fire on a successful run whose prose merely mentions credits", () => {
+      // The exit-0 ladder uses the anchored success-only list, so an assistant
+      // discussing billing must not be mistaken for a billing failure.
+      expect(classify({
+        exitCode: 0,
+        stderr: "",
+        records: [{
+          type: "settled",
+          assistantText: "I checked the billing page; your credit balance is too low is the error users report."
+        }],
+        patterns: defaultPatterns
+      })).toBeUndefined()
+    })
+  })
+
+  describe("reset-time parsing edge cases", () => {
+    const now = Date.UTC(2026, 7, 6, 12, 0, 0)
+
+    it("keeps the quota failure when a wall-clock reset can never occur", () => {
+      // Minute 99 matches the pattern but no instant in the eight-day search
+      // window has it, so the scan must give up rather than loop or throw.
+      const error = classify({
+        exitCode: 1,
+        stderr: "Rate limit exceeded. Resets 3:99pm (UTC).",
+        patterns: defaultPatterns,
+        now
+      })
+      expect(error).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect((error as AdapterError.QuotaExhausted).resetAt).toBeUndefined()
+    })
+
+    it("prefers the first retry-after spelling and ignores a later JSON duplicate", () => {
+      const error = classify({
+        exitCode: 1,
+        stderr: "quota exceeded: retry-after 30 seconds. {\"retry_after\": 900}",
+        patterns: defaultPatterns,
+        now
+      })
+      expect(error).toMatchObject({ retryAfterSeconds: 30, resetAt: now + 30_000 })
+    })
+
+    it("ignores a negative or non-finite retry-after instead of moving the reset backwards", () => {
+      const error = classify({
+        exitCode: 1,
+        stderr: "quota exceeded: retry_after: -5",
+        patterns: defaultPatterns,
+        now
+      })
+      expect(error).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect((error as AdapterError.QuotaExhausted).resetAt).toBeUndefined()
+    })
+
+    it("resolves each documented zone abbreviation to a future instant", () => {
+      for (const zone of ["ET", "PT", "CT", "MT", "UTC", "GMT"]) {
+        const error = classify({
+          exitCode: 1,
+          stderr: `Usage limit exceeded. Resets 9:30am ${zone}.`,
+          patterns: defaultPatterns,
+          now
+        })
+        const resetAt = (error as AdapterError.QuotaExhausted).resetAt
+        expect(resetAt, zone).toBeGreaterThan(now)
+        expect(resetAt, zone).toBeLessThanOrEqual(now + 8 * 86_400_000)
+      }
+    })
+
+    it("defaults a bare hour with no minutes to the top of the hour", () => {
+      const error = classify({
+        exitCode: 1,
+        stderr: "Usage limit exceeded. Resets 5pm (UTC).",
+        patterns: defaultPatterns,
+        now
+      })
+      const resetAt = (error as AdapterError.QuotaExhausted).resetAt
+      expect(resetAt).toBeDefined()
+      expect(new Date(resetAt!).getUTCHours()).toBe(17)
+      expect(new Date(resetAt!).getUTCMinutes()).toBe(0)
+    })
+
+    it("maps a 12am reset onto hour zero rather than hour twelve", () => {
+      const error = classify({
+        exitCode: 1,
+        stderr: "Usage limit exceeded. Resets 12am (UTC).",
+        patterns: defaultPatterns,
+        now
+      })
+      expect(new Date((error as AdapterError.QuotaExhausted).resetAt!).getUTCHours()).toBe(0)
+    })
+  })
+
+  /**
+   * On a zero exit the failure-record scan is what selects between the broad
+   * quota list and the anchored success-only list, so a marker's effect is
+   * observable as loose quota prose being honored rather than ignored.
+   */
+  describe("failure-record detection", () => {
+    const stderr = "The request hit your usage limit."
+    const gated = (record: unknown) => classify({ exitCode: 0, stderr, records: [record], patterns: defaultPatterns })
+
+    it("ignores records which are not objects", () => {
+      for (const record of ["error", 42, null, undefined, true]) {
+        expect(gated(record), String(record)).toBeUndefined()
+      }
+    })
+
+    it("treats each documented failure marker as a semantic failure", () => {
+      expect(gated({ is_error: true })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ type: "error" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ type: "turn.failed" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ subtype: "error_during_execution" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ status: "rejected" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ type: "closed", outcome: "aborted" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      // Case is normalized before comparison.
+      expect(gated({ type: "ERROR" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+      expect(gated({ type: "Turn.Failed" })).toBeInstanceOf(AdapterError.QuotaExhausted)
+    })
+
+    it("does not treat a benign record as a failure", () => {
+      expect(gated({ type: "closed", outcome: "resolved" })).toBeUndefined()
+      expect(gated({ type: "delta", text: "working" })).toBeUndefined()
+      expect(gated({ is_error: false })).toBeUndefined()
+      // Non-string discriminators cannot match any marker.
+      expect(gated({ type: 7 })).toBeUndefined()
+      expect(gated({ status: 7 })).toBeUndefined()
+      expect(gated({})).toBeUndefined()
+    })
+
+    it("surfaces a marked failure on a non-zero exit even with no stderr", () => {
+      expect(classify({ exitCode: 1, stderr: "", records: [{ type: "error" }], patterns: defaultPatterns }))
+        .toBeInstanceOf(AdapterError.ProtocolError)
+    })
+  })
 })
