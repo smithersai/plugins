@@ -115,8 +115,10 @@ const stripAnsi = (text: string): string => text.replace(new RegExp(`${escapeCha
 
 const sanitizeDiagnostic = (text: string): string =>
   text
+    // The optional scheme prefix matters: without it the value group would
+    // consume the literal `Bearer` and leave the credential behind it intact.
     .replace(
-      /(["']?(?:authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
+      /(["']?(?:authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)["']?\s*[:=]\s*["']?)(?:(?:Bearer|Basic|Token)\s+)?[^"',\s}]+/gi,
       "$1<redacted>"
     )
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer <redacted>")
@@ -313,10 +315,15 @@ export function classify(
   if (matches(text, selectedPatterns.config)) {
     return new AdapterError.ConfigInvalid({ message: truncateTailKeep(text, 4096) })
   }
-  if (isBenignStderr(input.stderr ?? "", selectedPatterns)) return undefined
+  // Only an actual benign notice suppresses a failure. Empty stderr is not a
+  // benign notice: a process which exits non-zero without saying anything, or
+  // which reports its failure only in stdout records, must still surface as a
+  // ProtocolError instead of being silently reported as a success.
+  const stderrText = input.stderr ?? ""
+  if (stderrText.trim().length > 0 && isBenignStderr(stderrText, selectedPatterns)) return undefined
   if (input.exitCode === null || input.exitCode === undefined || input.exitCode === 0) return undefined
   return new AdapterError.ProtocolError({
-    message: text.length === 0 ? `CLI exited with code ${input.exitCode}` : truncateTailKeep(text, 4096)
+    message: text.trim().length === 0 ? `CLI exited with code ${input.exitCode}` : truncateTailKeep(text, 4096)
   })
 }
 
