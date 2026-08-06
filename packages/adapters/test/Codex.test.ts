@@ -233,4 +233,260 @@ describe("Codex", () => {
       _tag: "flows/adapters/BinaryMissing"
     })
   })
+
+  describe("buildCommand", () => {
+    it("isolates CODEX_HOME and the last-message file under the cwd", () => {
+      const rootless = spec.buildCommand({})
+      expect(rootless.env?.CODEX_HOME).toBe(".flows/codex")
+      expect(rootless.outputFile).toBe(".flows/codex-output-last-message.txt")
+      expect(rootless.cleanup).toEqual([".flows/codex-output-last-message.txt"])
+      expect(spec.buildCommand({ cwd: "" }).env?.CODEX_HOME).toBe(".flows/codex")
+      expect(spec.buildCommand({ cwd: "/" }).env?.CODEX_HOME).toBe("/.flows/codex")
+      expect(spec.buildCommand({ cwd: "/" }).outputFile).toBe("/.flows/codex-output-last-message.txt")
+      const trimmed = spec.buildCommand({ cwd: "/workspace//" })
+      expect(trimmed.env?.CODEX_HOME).toBe("/workspace/.flows/codex")
+      expect(trimmed.outputFile).toBe("/workspace/.flows/codex-output-last-message.txt")
+      // The API key is always blanked so a stale ambient export cannot leak in.
+      expect(rootless.env?.OPENAI_API_KEY).toBe("")
+    })
+
+    it("projects sandbox and writable roots through -c and honours jsonMode", () => {
+      const built = spec.buildCommand({
+        sandbox: "workspace-write",
+        addDirs: ["/a", "/b"],
+        outputSchemaPath: "/schema.json"
+      })
+      expect(built.args).toEqual(expect.arrayContaining(["-c", "sandbox_mode=\"workspace-write\""]))
+      expect(built.args).toEqual(
+        expect.arrayContaining(["-c", "sandbox_workspace_write.writable_roots=[\"/a\",\"/b\"]"])
+      )
+      expect(built.args).toEqual(expect.arrayContaining(["--output-schema", "/schema.json"]))
+      expect(built.args).toContain("--json")
+      // An empty addDirs list must not emit an empty writable_roots override.
+      expect(spec.buildCommand({ addDirs: [] }).args.join(" ")).not.toContain("writable_roots")
+      // jsonMode defaults on; only an explicit false suppresses --json.
+      expect(spec.buildCommand({ jsonMode: false }).args).not.toContain("--json")
+      expect(spec.buildCommand({ jsonMode: true }).args).toContain("--json")
+    })
+
+    it("passes a profile on a fresh run and always terminates the argv with the stdin marker", () => {
+      const fresh = spec.buildCommand({ profile: "seat-a" })
+      expect(fresh.args.slice(0, 1)).toEqual(["exec"])
+      expect(fresh.args).toEqual(expect.arrayContaining(["--profile", "seat-a"]))
+      expect(fresh.args.at(-1)).toBe("-")
+      const resumed = spec.buildCommand({}, { sessionId: "thread-1" })
+      expect(resumed.args.slice(0, 2)).toEqual(["exec", "resume"])
+      expect(resumed.args.at(-1)).toBe("-")
+      expect(resumed.args.at(-2)).toBe("thread-1")
+    })
+
+    it("rejects resume-incompatible extra args instead of silently dropping them", () => {
+      for (const flag of ["--profile", "-p", "--sandbox", "-s", "--cd", "-C", "--add-dir", "--color"]) {
+        expect(() => spec.buildCommand({ extraArgs: [flag, "value"] }, { sessionId: "t-1" }))
+          .toThrow(`Codex resume does not accept ${flag}`)
+        expect(() => spec.buildCommand({ extraArgs: [`${flag}=value`] }, { sessionId: "t-1" }))
+          .toThrow(`Codex resume does not accept ${flag}=value`)
+      }
+      // The same flags are fine on a fresh run, and unrelated flags survive resume.
+      expect(spec.buildCommand({ extraArgs: ["--sandbox", "value"] }).args).toContain("--sandbox")
+      expect(spec.buildCommand({ extraArgs: ["--unrelated"] }, { sessionId: "t-1" }).args).toContain("--unrelated")
+    })
+  })
+
+  describe("interpret", () => {
+    it("accepts a JSON string line and rejects non-object, malformed, or unknown input", () => {
+      expect(spec.interpret("{\"type\":\"thread.started\",\"thread_id\":\"t-1\"}")).toEqual({
+        type: "resumeToken",
+        sessionId: "t-1"
+      })
+      expect(spec.interpret("nope")).toBeNull()
+      expect(spec.interpret([1])).toBeNull()
+      expect(spec.interpret(undefined)).toBeNull()
+      expect(spec.interpret({ type: "thread.started" })).toBeNull()
+      expect(spec.interpret({ type: "some.other.event" })).toBeNull()
+      // A recognized item envelope with no item payload is dropped.
+      expect(spec.interpret({ type: "item.completed" })).toBeNull()
+      expect(spec.interpret({ type: "item.started", item: { type: "unknown_item" } })).toBeNull()
+    })
+
+    it("prefers a top-level failure message over the nested error message", () => {
+      expect(spec.interpret({ type: "turn.failed", message: "top", error: { message: "nested" } })).toEqual({
+        type: "closed",
+        stopReason: "error",
+        outcome: "aborted",
+        message: "top"
+      })
+      expect(spec.interpret({ type: "error", error: { message: "nested" } })).toMatchObject({ message: "nested" })
+      expect(spec.interpret({ type: "turn.failed" })).toMatchObject({ message: "Codex run failed" })
+    })
+
+    it("emits usage only for a well-formed turn.completed payload", () => {
+      expect(spec.interpret({ type: "turn.completed", usage: { total_tokens: 90 } })).toEqual({
+        type: "usage",
+        total_tokens: 90
+      })
+      // reasoning_output_tokens is the later spelling and overrides the earlier one.
+      expect(
+        spec.interpret({ type: "turn.completed", usage: { reasoning_tokens: 1, reasoning_output_tokens: 5 } })
+      ).toEqual({ type: "usage", reasoning_tokens: 5 })
+      // Non-numeric fields are dropped rather than coerced.
+      expect(spec.interpret({ type: "turn.completed", usage: { input_tokens: "12" } })).toEqual({ type: "usage" })
+      expect(spec.interpret({ type: "turn.completed", usage: "nope" })).toBeNull()
+      expect(spec.interpret({ type: "turn.completed" })).toBeNull()
+    })
+
+    it("streams an in-flight agent message as a delta and only settles on completion", () => {
+      expect(spec.interpret({ type: "item.updated", item: { type: "agent_message", id: "i-1", text: "partial" } }))
+        .toEqual({ type: "delta", text: "partial" })
+      expect(spec.interpret({ type: "item.completed", item: { type: "agent_message", id: "i-1", text: "final" } }))
+        .toEqual({ type: "settled", assistantText: "final", responseId: "i-1" })
+      expect(spec.interpret({ type: "item.completed", item: { type: "agent_message", text: "" } })).toBeNull()
+      expect(spec.interpret({ type: "item.completed", item: { type: "agent_message" } })).toBeNull()
+    })
+
+    it("drops empty reasoning and keeps non-empty reasoning as a thinking delta", () => {
+      expect(spec.interpret({ type: "item.updated", item: { type: "reasoning", text: "considering" } }))
+        .toEqual({ type: "delta", thinking: "considering" })
+      expect(spec.interpret({ type: "item.updated", item: { type: "reasoning", text: "" } })).toBeNull()
+      expect(spec.interpret({ type: "item.updated", item: { type: "reasoning" } })).toBeNull()
+    })
+
+    it("qualifies an MCP tool call with its server and falls back to the bare tool name", () => {
+      expect(
+        spec.interpret({
+          type: "item.started",
+          item: { type: "mcp_tool_call", id: "i-2", server: "github", tool: "list_prs", arguments: { limit: 5 } }
+        })
+      ).toEqual({
+        type: "delta",
+        toolCall: { name: "github.list_prs", id: "i-2", arguments: JSON.stringify({ limit: 5 }) }
+      })
+      expect(spec.interpret({ type: "item.started", item: { type: "mcp_tool_call", tool: "solo" } })).toEqual({
+        type: "delta",
+        toolCall: { name: "solo", arguments: "{}" }
+      })
+      expect(spec.interpret({ type: "item.started", item: { type: "mcp_tool_call", server: "github" } })).toBeNull()
+    })
+
+    it("renders a web search as a tool call carrying the raw query", () => {
+      expect(spec.interpret({ type: "item.completed", item: { type: "web_search", query: "effect v4 layers" } }))
+        .toEqual({ type: "delta", toolCall: { name: "web_search", arguments: "effect v4 layers" } })
+      expect(spec.interpret({ type: "item.completed", item: { type: "web_search" } })).toBeNull()
+    })
+
+    it("keeps an in-progress command a call and marks failed or declined results errors", () => {
+      // Completed envelope but in_progress status is still only a call.
+      expect(
+        spec.interpret({
+          type: "item.completed",
+          item: { type: "command_execution", id: "c-1", command: "ls", status: "in_progress" }
+        })
+      ).toEqual({ type: "delta", toolCall: { name: "shell_command", id: "c-1", arguments: "{\"command\":\"ls\"}" } })
+      expect(spec.interpret({ type: "item.started", item: { type: "command_execution", command: "ls" } }))
+        .toEqual({ type: "delta", toolCall: { name: "shell_command", arguments: "{\"command\":\"ls\"}" } })
+
+      for (const status of ["failed", "declined"]) {
+        const record = spec.interpret({
+          type: "item.completed",
+          item: { type: "command_execution", id: "c-2", command: "ls", status, exit_code: 2 }
+        })
+        expect(record).toMatchObject({ type: "toolResult", name: "shell_command", status: "error" })
+        expect(JSON.parse((record as { output: string }).output)).toEqual({ output: "", exitCode: 2, status })
+      }
+
+      // No status at all completes and reports a null exit code.
+      const bare = spec.interpret({ type: "item.completed", item: { type: "command_execution", command: "ls" } })
+      expect(bare).toMatchObject({ status: "completed" })
+      expect(JSON.parse((bare as { output: string }).output)).toEqual({
+        output: "",
+        exitCode: null,
+        status: "completed"
+      })
+      expect(spec.interpret({ type: "item.completed", item: { type: "command_execution" } })).toBeNull()
+    })
+
+    it("reports a failed file change as an errored apply_patch and tolerates absent changes", () => {
+      const failed = spec.interpret({
+        type: "item.completed",
+        item: { type: "file_change", id: "f-1", status: "failed", changes: [{ path: "a.ts", kind: "update" }] }
+      })
+      expect(failed).toMatchObject({ type: "toolResult", name: "apply_patch", id: "f-1", status: "error" })
+      expect(JSON.parse((failed as { output: string }).output)).toEqual({
+        changes: [{ path: "a.ts", kind: "update" }],
+        status: "failed"
+      })
+      // A non-array changes field degrades to an empty change set, not a crash.
+      const bare = spec.interpret({ type: "item.completed", item: { type: "file_change", changes: "nope" } })
+      expect(bare).toMatchObject({ status: "completed", arguments: "{\"changes\":[]}" })
+    })
+
+    it("projects a todo list into update_plan, skipping malformed entries", () => {
+      expect(
+        spec.interpret({
+          type: "item.updated",
+          item: {
+            type: "todo_list",
+            id: "t-1",
+            items: [
+              { text: "done step", completed: true },
+              { text: "open step" },
+              { text: "explicitly open", completed: false },
+              { completed: true },
+              "not-an-object"
+            ]
+          }
+        })
+      ).toEqual({
+        type: "delta",
+        toolCall: {
+          name: "update_plan",
+          id: "t-1",
+          arguments: JSON.stringify({
+            items: [
+              { text: "done step", status: "completed" },
+              { text: "open step", status: "pending" },
+              { text: "explicitly open", status: "pending" }
+            ]
+          })
+        }
+      })
+      expect(spec.interpret({ type: "item.updated", item: { type: "todo_list", items: "nope" } }))
+        .toEqual({ type: "delta", toolCall: { name: "update_plan", arguments: "{\"items\":[]}" } })
+    })
+
+    it("namespaces a collab tool call and requires a tool name", () => {
+      expect(
+        spec.interpret({ type: "item.started", item: { type: "collab_tool_call", id: "x-1", tool: "ask", prompt: "hi" } })
+      ).toEqual({
+        type: "delta",
+        toolCall: { name: "collab.ask", id: "x-1", arguments: JSON.stringify({ prompt: "hi" }) }
+      })
+      // A missing prompt still encodes an object rather than the string "undefined".
+      expect(spec.interpret({ type: "item.started", item: { type: "collab_tool_call", tool: "ask" } }))
+        .toEqual({ type: "delta", toolCall: { name: "collab.ask", arguments: "{}" } })
+      expect(spec.interpret({ type: "item.started", item: { type: "collab_tool_call" } })).toBeNull()
+    })
+  })
+
+  describe("preflight", () => {
+    const failureOf = (exec: Parameters<typeof Shell.makeNoop>[0]["exec"]) =>
+      Effect.runSync(Effect.flip(spec.preflight!(Shell.makeNoop({ exec }), { CODEX_HOME: "/tmp/codex" })))
+
+    it("passes on exit 0 and distinguishes not-executable, config, and spawn failures", () => {
+      expect(
+        Effect.runSync(
+          spec.preflight!(Shell.makeNoop({ exec: () => Effect.succeed({ stdout: "", stderr: "", exitCode: 0 }) }), {})
+        )
+      ).toBeUndefined()
+      expect(failureOf(() => Effect.succeed({ stdout: "", stderr: "", exitCode: 126 }))).toMatchObject({
+        _tag: "flows/adapters/BinaryMissing"
+      })
+      expect(failureOf(() => Effect.succeed({ stdout: "", stderr: "bad", exitCode: 3 }))).toMatchObject({
+        _tag: "flows/adapters/ConfigInvalid"
+      })
+      expect(failureOf(() => Effect.fail(new Error("no host")) as never)).toMatchObject({
+        _tag: "flows/adapters/SpawnFailed"
+      })
+    })
+  })
 })

@@ -187,4 +187,240 @@ describe("ClaudeCode", () => {
       _tag: "flows/adapters/BinaryMissing"
     })
   })
+
+  describe("buildCommand", () => {
+    it("isolates CLAUDE_CONFIG_DIR under the cwd, normalizing root and trailing slashes", () => {
+      expect(spec.buildCommand({}).env?.CLAUDE_CONFIG_DIR).toBe(".flows/claude-code")
+      expect(spec.buildCommand({ cwd: "" }).env?.CLAUDE_CONFIG_DIR).toBe(".flows/claude-code")
+      expect(spec.buildCommand({ cwd: "/" }).env?.CLAUDE_CONFIG_DIR).toBe("/.flows/claude-code")
+      expect(spec.buildCommand({ cwd: "/workspace//" }).env?.CLAUDE_CONFIG_DIR).toBe("/workspace/.flows/claude-code")
+    })
+
+    it("maps each sandbox level onto Claude's permission flags", () => {
+      const args = (sandbox?: string) => spec.buildCommand(sandbox === undefined ? {} : { sandbox }).args
+      expect(args("danger-full-access")).toEqual(expect.arrayContaining([
+        "--allow-dangerously-skip-permissions",
+        "--dangerously-skip-permissions",
+        "--permission-mode",
+        "bypassPermissions"
+      ]))
+      expect(args("read-only")).toEqual(expect.arrayContaining(["--permission-mode", "plan"]))
+      expect(args("workspace-write")).toEqual(expect.arrayContaining(["--permission-mode", "acceptEdits"]))
+      // An unrecognized value is forwarded verbatim rather than silently dropped.
+      expect(args("custom-mode")).toEqual(expect.arrayContaining(["--permission-mode", "custom-mode"]))
+      expect(args()).not.toContain("--permission-mode")
+    })
+
+    it("collapses every system-prompt spelling into exactly one channel", () => {
+      // `--system-prompt=` inline form wins when it arrives first, and the
+      // later space-separated flag must not append a second channel.
+      const inline = spec.buildCommand({
+        extraArgs: ["--system-prompt=first channel", "--system-prompt", "second channel", "--keep-me"]
+      })
+      expect(inline.args.filter((argument) => argument === "--system-prompt")).toHaveLength(1)
+      expect(inline.args.at(-1)).toBe("first channel")
+      expect(inline.args).toContain("--keep-me")
+      expect(inline.args).not.toContain("--system-prompt=first channel")
+      expect(inline.args).not.toContain("second channel")
+
+      // Both append spellings are dropped along with the space-separated value.
+      const appended = spec.buildCommand({
+        extraArgs: ["--append-system-prompt", "dropped value", "--append-system-prompt=also dropped", "--kept"]
+      })
+      expect(appended.args).not.toContain("dropped value")
+      expect(appended.args).not.toContain("--append-system-prompt=also dropped")
+      expect(appended.args).toContain("--kept")
+      // No --system-prompt supplied at all still projects one empty channel.
+      expect(appended.args.at(-2)).toBe("--system-prompt")
+      expect(appended.args.at(-1)).toBe("")
+    })
+
+    it("emits one --add-dir per directory and threads model and schema flags", () => {
+      const built = spec.buildCommand({
+        addDirs: ["/a", "/b"],
+        model: "claude-opus-4",
+        outputSchemaPath: "/schema.json"
+      })
+      expect(built.args.filter((argument) => argument === "--add-dir")).toHaveLength(2)
+      expect(built.args).toEqual(expect.arrayContaining(["--add-dir", "/a", "--add-dir", "/b"]))
+      expect(built.args).toEqual(expect.arrayContaining(["--model", "claude-opus-4"]))
+      expect(built.args).toEqual(expect.arrayContaining(["--json-schema", "/schema.json"]))
+    })
+  })
+
+  describe("interpret", () => {
+    it("accepts a JSON string line and rejects non-object or malformed input", () => {
+      expect(spec.interpret("{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-1\"}")).toEqual({
+        type: "resumeToken",
+        sessionId: "s-1"
+      })
+      expect(spec.interpret("not json at all")).toBeNull()
+      expect(spec.interpret("[1,2,3]")).toBeNull()
+      expect(spec.interpret(42)).toBeNull()
+      expect(spec.interpret(null)).toBeNull()
+      expect(spec.interpret({ type: "unrecognized" })).toBeNull()
+    })
+
+    it("drops an init frame that carries no session id", () => {
+      expect(spec.interpret({ type: "system", subtype: "init" })).toBeNull()
+      // A non-init system frame is not a resume token either.
+      expect(spec.interpret({ type: "system", subtype: "other", session_id: "s-1" })).toBeNull()
+    })
+
+    it("drops assistant frames with no message or no renderable content", () => {
+      expect(spec.interpret({ type: "assistant" })).toBeNull()
+      expect(spec.interpret({ type: "assistant", message: { content: [] } })).toBeNull()
+      expect(spec.interpret({ type: "assistant", message: { content: 7 } })).toBeNull()
+      // Blocks of an unknown type contribute nothing.
+      expect(spec.interpret({ type: "assistant", message: { content: [{ type: "image" }] } })).toBeNull()
+      // An empty text block joins to "" and must not fabricate a delta.
+      expect(spec.interpret({ type: "assistant", message: { content: [{ type: "text", text: "" }] } })).toBeNull()
+      // A tool_use block with no name is not a usable tool call.
+      expect(spec.interpret({ type: "assistant", message: { content: [{ type: "tool_use", input: {} }] } })).toBeNull()
+    })
+
+    it("reads string message content and combines text, thinking, and a tool call", () => {
+      expect(spec.interpret({ type: "assistant", message: { content: "plain string body" } })).toEqual({
+        type: "delta",
+        text: "plain string body"
+      })
+      expect(
+        spec.interpret({
+          type: "assistant",
+          message: {
+            content: [
+              { type: "text", text: "part one " },
+              { type: "text", text: "part two" },
+              { type: "thinking", thinking: "reasoning" },
+              { type: "tool_use", name: "Read", input: { file: "a.ts" } }
+            ]
+          }
+        })
+      ).toEqual({
+        type: "delta",
+        text: "part one part two",
+        thinking: "reasoning",
+        toolCall: { name: "Read", arguments: JSON.stringify({ file: "a.ts" }) }
+      })
+    })
+
+    it("defaults a tool call with no input to an empty argument object", () => {
+      expect(
+        spec.interpret({ type: "assistant", message: { content: [{ type: "tool_use", name: "Read", id: "t-1" }] } })
+      ).toEqual({ type: "delta", toolCall: { name: "Read", id: "t-1", arguments: "{}" } })
+    })
+
+    it("marks an errored tool_result and falls back to string content", () => {
+      expect(
+        spec.interpret({
+          type: "user",
+          message: { content: [{ type: "tool_result", tool_use_id: "t-1", is_error: true, content: "boom" }] }
+        })
+      ).toEqual({ type: "toolResult", id: "t-1", status: "error", output: "boom" })
+      // A tool_result with no id and no content still reports its status.
+      expect(spec.interpret({ type: "user", message: { content: [{ type: "tool_result" }] } })).toEqual({
+        type: "toolResult",
+        status: "completed"
+      })
+    })
+
+    it("maps content_block_delta stream events and ignores other event shapes", () => {
+      expect(
+        spec.interpret({ type: "stream_event", event: { type: "content_block_delta", delta: { text: "tok" } } })
+      ).toEqual({ type: "delta", text: "tok" })
+      expect(
+        spec.interpret({ type: "stream_event", event: { type: "content_block_delta", delta: { thinking: "think" } } })
+      ).toEqual({ type: "delta", thinking: "think" })
+      expect(
+        spec.interpret({ type: "stream_event", event: { type: "content_block_delta", delta: {} } })
+      ).toBeNull()
+      expect(spec.interpret({ type: "stream_event", event: { type: "message_start", delta: {} } })).toBeNull()
+      expect(spec.interpret({ type: "stream_event", event: { type: "content_block_delta" } })).toBeNull()
+      expect(spec.interpret({ type: "stream_event" })).toBeNull()
+    })
+
+    it("suspends on a rejected overage status but ignores an allowed rate-limit event", () => {
+      expect(spec.interpret({ type: "rate_limit_event", rate_limit_info: { overageStatus: "rejected" } }))
+        .toMatchObject({ type: "closed", stopReason: "error", outcome: "suspended" })
+      // An explicit non-rejected status wins over the overage field.
+      expect(
+        spec.interpret({ type: "rate_limit_event", rate_limit_info: { status: "allowed", overageStatus: "rejected" } })
+      ).toBeNull()
+      expect(spec.interpret({ type: "rate_limit_event", rate_limit_info: { status: "allowed" } })).toBeNull()
+      expect(spec.interpret({ type: "rate_limit_event" })).toBeNull()
+    })
+
+    it("aborts on an errored result and prefers the error field over the result text", () => {
+      expect(spec.interpret({ type: "result", is_error: true, error: "explicit error", result: "ignored" })).toEqual({
+        type: "closed",
+        stopReason: "error",
+        outcome: "aborted",
+        message: "explicit error"
+      })
+      expect(spec.interpret({ type: "result", subtype: "error_during_execution", result: "fallback" })).toMatchObject({
+        outcome: "aborted",
+        message: "fallback"
+      })
+      expect(spec.interpret({ type: "result", is_error: true })).toMatchObject({ message: "Claude run failed" })
+    })
+
+    it("settles with usage and the session id, and drops a result with no text", () => {
+      expect(
+        spec.interpret({ type: "result", result: "final", usage: { input_tokens: 3 }, session_id: "s-9" })
+      ).toEqual({
+        type: "settled",
+        assistantText: "final",
+        usage: { input_tokens: 3 },
+        responseId: "s-9"
+      })
+      expect(spec.interpret({ type: "result", result: "final" })).toEqual({ type: "settled", assistantText: "final" })
+      // Non-string usage is not projected as a usage record.
+      expect(spec.interpret({ type: "result", result: "final", usage: "not-a-record" })).toEqual({
+        type: "settled",
+        assistantText: "final"
+      })
+      expect(spec.interpret({ type: "result", subtype: "success" })).toBeNull()
+    })
+  })
+
+  describe("preflight", () => {
+    const failureOf = (exec: Parameters<typeof Shell.makeNoop>[0]["exec"]) =>
+      Effect.runSync(Effect.flip(spec.preflight!(Shell.makeNoop({ exec }), { CLAUDE_CONFIG_DIR: "/tmp/cfg" })))
+
+    it("passes on exit 0 and distinguishes not-executable, config, and spawn failures", () => {
+      expect(
+        Effect.runSync(
+          spec.preflight!(
+            Shell.makeNoop({ exec: () => Effect.succeed({ stdout: "1.0.0", stderr: "", exitCode: 0 }) }),
+            {}
+          )
+        )
+      ).toBeUndefined()
+      expect(failureOf(() => Effect.succeed({ stdout: "", stderr: "", exitCode: 126 }))).toMatchObject({
+        _tag: "flows/adapters/BinaryMissing"
+      })
+      expect(failureOf(() => Effect.succeed({ stdout: "", stderr: "bad config", exitCode: 1 }))).toMatchObject({
+        _tag: "flows/adapters/ConfigInvalid"
+      })
+      expect(failureOf(() => Effect.fail(new Error("no host")) as never)).toMatchObject({
+        _tag: "flows/adapters/SpawnFailed"
+      })
+    })
+
+    it("forwards the merged environment to the version probe", () => {
+      const seen: Array<Readonly<Record<string, string>> | undefined> = []
+      Effect.runSync(
+        spec.preflight!(
+          Shell.makeNoop({
+            exec: (_command, options) => {
+              seen.push(options?.env as Readonly<Record<string, string>> | undefined)
+              return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 })
+            }
+          }),
+          { CLAUDE_CONFIG_DIR: "/tmp/cfg" }
+        )
+      )
+      expect(seen).toEqual([{ CLAUDE_CONFIG_DIR: "/tmp/cfg" }])
+    })
+  })
 })
