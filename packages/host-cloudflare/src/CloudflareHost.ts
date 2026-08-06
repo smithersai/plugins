@@ -1,5 +1,5 @@
 /** Complete Cloudflare Workers Host bundle. @since 0.1.0 */
-import { HostServiceIds } from "@smithers/host/HostServices"
+import type { HostServiceIds } from "@smithers/host/HostServices"
 import type * as HttpTransport from "@smithers/host/HttpTransport"
 import type * as Jj from "@smithers/host/Jj"
 import type * as Pty from "@smithers/host/Pty"

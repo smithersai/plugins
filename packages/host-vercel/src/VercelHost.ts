@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { HostServiceIds } from "@smithers/host/HostServices"
+import type { HostServiceIds } from "@smithers/host/HostServices"
 import type { HttpTransport } from "@smithers/host/HttpTransport"
 import type { Jj } from "@smithers/host/Jj"
 import type { Pty } from "@smithers/host/Pty"
