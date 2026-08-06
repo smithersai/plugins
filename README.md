@@ -52,7 +52,8 @@ and running `check`, `lint` and `test`.
 Two things must be true on GitHub before it can go green, and neither is
 verifiable from a local checkout:
 
-1. The repository needs a `SUBMODULE_CHECKOUT_TOKEN` secret. `smithersai/monorepo`
+1. The repository needs a `SUBMODULE_CHECKOUT_TOKEN` secret with `contents: read`
+   on `smithersai/monorepo` and all four of its submodules. `smithersai/monorepo`
    and `smithersai/agent` are private and the default `GITHUB_TOKEN` is scoped
    to `smithersai/plugins` alone, so it 404s on both.
 2. The superproject's recorded submodule SHAs must actually be pushed. As of

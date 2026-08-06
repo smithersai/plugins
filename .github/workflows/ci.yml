@@ -22,10 +22,11 @@ on:
 #
 # REQUIRED SECRET: `SUBMODULE_CHECKOUT_TOKEN`. smithersai/monorepo and
 # smithersai/agent are private (smithersai/flows is public), and the default
-# GITHUB_TOKEN is scoped to smithersai/plugins alone, so it 404s on both. The
-# secret must be a PAT or GitHub App installation token with `contents: read`
-# on smithersai/monorepo, smithersai/agent and smithersai/flows. An `ssh-key:`
-# with the same reach works too.
+# GITHUB_TOKEN is scoped to smithersai/plugins alone, so it 404s on both.
+# `submodules: true` initializes every submodule the superproject records, so
+# the secret must be a PAT or GitHub App installation token with
+# `contents: read` on smithersai/monorepo AND all four submodules — agent,
+# flows, plugins, ui. An `ssh-key:` with the same reach works too.
 
 jobs:
   test:
