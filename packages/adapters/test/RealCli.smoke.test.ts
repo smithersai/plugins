@@ -123,7 +123,7 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
         expect(outcome._tag).toBe("Success")
       }, 120_000)
 
-      it("answers a one-word question through its own reader", async () => {
+      it("answers a one-word question through its own reader", async (ctx) => {
         // Seat failover, exactly as the pool does it: a seat whose login has
         // lapsed or whose quota is spent is stepped over, every other failure
         // is the adapter's and fails the test.
@@ -173,13 +173,12 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
           return
         }
 
-        // Every seat refused. That is a fact about this machine's logins, and
-        // the adapter naming each refusal from the vendor's own words is the
-        // behaviour under test — so it is a named skip, never a silent pass and
-        // never a fabricated answer.
-        // eslint-disable-next-line no-console
-        console.warn(`skipped: no seat answered for ${binary}\n  ${refusals.join("\n  ")}`)
-        expect(refusals.length).toBe(seats.length)
+        // Every seat refused. That is a fact about this machine's logins, not a
+        // statement about the adapter, so the case skips with each refusal
+        // named. Asserting on the refusal count here would record a green pass
+        // on a machine that never spent a real turn, which is the one outcome
+        // this suite must never produce.
+        ctx.skip(`no seat answered for ${binary}: ${refusals.join("; ")}`)
       }, 300_000)
     }
   )
