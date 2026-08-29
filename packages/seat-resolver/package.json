@@ -27,14 +27,14 @@
   "dependencies": {
     "effect": "link:../../../smithers-v1/node_modules/effect",
     "@smthrs/agent": "link:../../../smithers-v1/packages/agent",
-    "@smthrs-plugins/accounts": "workspace:*",
-    "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
     "@smthrs/model": "link:../../../smithers-v1/packages/model",
+    "@smthrs-plugins/accounts": "workspace:*",
     "@smthrs-plugins/usage": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "@effect/platform-node": "link:../../../smithers-v1/node_modules/@effect/platform-node"
   }
 }

@@ -188,9 +188,6 @@ importers:
       '@smthrs/agent':
         specifier: link:../../../smithers-v1/packages/agent
         version: link:../../../smithers-v1/packages/agent
-      '@smthrs/kernel':
-        specifier: link:../../../smithers-v1/packages/kernel
-        version: link:../../../smithers-v1/packages/kernel
       '@smthrs/model':
         specifier: link:../../../smithers-v1/packages/model
         version: link:../../../smithers-v1/packages/model
@@ -198,6 +195,9 @@ importers:
         specifier: link:../../../smithers-v1/node_modules/effect
         version: link:../../../smithers-v1/node_modules/effect
     devDependencies:
+      '@effect/platform-node':
+        specifier: link:../../../smithers-v1/node_modules/@effect/platform-node
+        version: link:../../../smithers-v1/node_modules/@effect/platform-node
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
