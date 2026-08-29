@@ -41,7 +41,7 @@ pnpm test
 Smithers 1.0 resolves seats from environment keys and ships one built-in agent.
 Multi-account rotation, vendor CLI subprocesses, and cloud sandbox hosts are
 local operations concerns rather than engine features, so they bind through
-public seams — `@smthrs/agent` `SeatResolver`, `@smthrs/sandbox`
-`RemoteChildProcessSpawner.Provider` and `SandboxHealth.PingProvider`,
-`@smthrs/harness` `Cell`, `EngineLike`, and `FlowBinding` — and never through
-engine internals or store tables.
+public seams and never through engine internals or store tables. The seams are
+`@smthrs/agent` `SeatResolver`, `@smthrs/sandbox`
+`RemoteChildProcessSpawner.Provider` and `SandboxHealth.PingProvider`, and
+`@smthrs/harness` `FlowBinding`.

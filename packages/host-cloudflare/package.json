@@ -25,13 +25,23 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/sandbox": "link:../../../smithers-v1/packages/sandbox",
+    "effect": "4.0.0-rc.108",
+    "@smthrs/sandbox": "1.0.0-rc.0",
     "@smthrs-plugins/provider-kit": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "@cloudflare/sandbox": "0.12.9",
+    "@cloudflare/workers-types": "4.20260101.0"
+  },
+  "peerDependencies": {
+    "@cloudflare/sandbox": "^0.12.3"
+  },
+  "peerDependenciesMeta": {
+    "@cloudflare/sandbox": {
+      "optional": true
+    }
   }
 }

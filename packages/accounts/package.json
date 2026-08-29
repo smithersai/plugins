@@ -25,14 +25,14 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
-    "@smthrs/platform-node": "link:../../../smithers-v1/packages/platform-node"
+    "effect": "4.0.0-rc.108",
+    "@smthrs/kernel": "1.0.0-rc.0",
+    "@smthrs/platform-node": "1.0.0-rc.0"
   },
   "devDependencies": {
     "@types/node": "25.9.5",
     "typescript": "6.0.3",
     "vitest": "4.1.9",
-    "@effect/platform-node": "link:../../../smithers-v1/node_modules/@effect/platform-node"
+    "@effect/platform-node": "4.0.0-rc.108"
   }
 }

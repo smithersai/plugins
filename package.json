@@ -16,7 +16,8 @@
     "packages/host-microsandbox"
   ],
   "scripts": {
-    "check": "pnpm -r --if-present run check",
+    "check:manifests": "node scripts/check-manifests.mjs",
+    "check": "node scripts/check-manifests.mjs && pnpm -r --if-present run check",
     "test": "pnpm -r --if-present run test",
     "coverage": "pnpm -r --if-present run coverage"
   },

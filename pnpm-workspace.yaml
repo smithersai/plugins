@@ -2,3 +2,27 @@ packages:
   - "packages/*"
 
 linkWorkspacePackages: true
+
+# Development-only resolution.
+#
+# The manifests pin `@smthrs/*` at 1.0.0-rc.0 and `effect` at 4.0.0-rc.108,
+# which is what a consumer installs. Neither is on the registry yet, and both
+# repositories must share one physical `effect` install or Effect's `Context`
+# tags stop matching across the boundary. These overrides point both at the
+# sibling Smithers checkout for development, and they are the only reason a
+# `link:` path appears anywhere in this repository. Publishing drops them; the
+# `check:manifests` script keeps them out of the manifests themselves.
+#
+# Point them at a worktree instead to gate this repository against a branch:
+#
+#   sed -i '' 's|../smithers-v1|../smithers-v1-worktree|' pnpm-workspace.yaml
+overrides:
+  effect: "link:../smithers-v1/node_modules/effect"
+  "@effect/platform-node": "link:../smithers-v1/node_modules/@effect/platform-node"
+  "@smthrs/agent": "link:../smithers-v1/packages/agent"
+  "@smthrs/core": "link:../smithers-v1/packages/core"
+  "@smthrs/harness": "link:../smithers-v1/packages/harness"
+  "@smthrs/kernel": "link:../smithers-v1/packages/kernel"
+  "@smthrs/model": "link:../smithers-v1/packages/model"
+  "@smthrs/platform-node": "link:../smithers-v1/packages/platform-node"
+  "@smthrs/sandbox": "link:../smithers-v1/packages/sandbox"
