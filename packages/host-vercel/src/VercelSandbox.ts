@@ -60,15 +60,36 @@ const attempt = <A>(
   })
 
 const streamOf = (
-  value: (() => Promise<string>) | string | undefined
+  read: () => Promise<string>
 ): Stream.Stream<Uint8Array, RemoteChildProcessSpawner.ProviderError> =>
-  value === undefined
-    ? Stream.empty
-    : typeof value === "string"
-    ? Stream.make(new TextEncoder().encode(value))
-    : Stream.fromEffect(
-      Effect.map(attempt(value, "output"), (text) => new TextEncoder().encode(text))
-    )
+  Stream.fromEffect(Effect.map(attempt(read, "output"), (text) => new TextEncoder().encode(text)))
+
+/**
+ * Decodes what the vendor's `readFile` answers into file text.
+ *
+ * `Sandbox.readFile` resolves to a readable stream, or `null` for a file that
+ * is not there. Handing the stream object back would make every read the
+ * string `"[object Object]"`, so it is drained here. A missing file reads as
+ * empty rather than failing, which is what the callers of `Session.readFile`
+ * expect from a result file that was never written.
+ *
+ * @category conversions
+ * @since 1.0.0
+ */
+export const decodeFile = async (
+  value: NodeJS.ReadableStream | null | undefined
+): Promise<string> => {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "string") return value
+  if (value instanceof Uint8Array) return new TextDecoder().decode(value)
+  const decoder = new TextDecoder()
+  let text = ""
+  for await (const chunk of value as AsyncIterable<unknown>) {
+    if (typeof chunk === "string") text += chunk
+    else if (chunk instanceof Uint8Array) text += decoder.decode(chunk, { stream: true })
+  }
+  return text + decoder.decode()
+}
 
 /**
  * The lifetime one `create` may ask for, given the target.
@@ -112,17 +133,17 @@ export const session = (
         }),
       "creation failed"
     )
-    if (desiredMs > createMs && sandbox.extendTimeout !== undefined) {
+    if (desiredMs > createMs) {
       // extendTimeout extends BY its argument, so the remainder is what goes
-      // on the wire — sending the target would double the lifetime.
-      yield* attempt(() => sandbox.extendTimeout?.(desiredMs - createMs) ?? Promise.resolve(), "extend failed")
+      // on the wire. Sending the target would double the lifetime.
+      yield* attempt(() => sandbox.extendTimeout(desiredMs - createMs), "extend failed")
     }
 
     return {
-      remoteId: sandbox.sandboxId ?? providerId,
+      remoteId: sandbox.name,
       writeFile: (path, content) =>
         attempt(() => sandbox.writeFiles([{ path, content }]), `write ${path}`),
-      readFile: (path) => attempt(() => sandbox.readFile({ path }), `read ${path}`),
+      readFile: (path) => attempt(() => sandbox.readFile({ path }).then(decodeFile), `read ${path}`),
       exec: (command, execOptions) =>
         Effect.map(
           attempt(
@@ -140,17 +161,15 @@ export const session = (
             "runCommand failed"
           ),
           (result) => ({
-            stdout: streamOf(result.stdout),
-            stderr: streamOf(result.stderr),
-            exitCode: Effect.succeed(result.exitCode ?? 0)
+            stdout: streamOf(() => result.stdout()),
+            stderr: streamOf(() => result.stderr()),
+            exitCode: Effect.succeed(result.exitCode)
           })
         ),
       ping: Effect.asVoid(
         attempt(() => sandbox.runCommand({ cmd: "true", cwd: workdir }), "ping")
       ),
-      ...(sandbox.stop === undefined
-        ? {}
-        : { destroy: Effect.ignore(attempt(() => sandbox.stop?.() ?? Promise.resolve(), "stop")) })
+      destroy: Effect.ignore(attempt(() => sandbox.stop(), "stop"))
     }
   })
 
@@ -168,6 +187,9 @@ export const make = (
     session: options.session,
     open: session(options),
     workdir: options.workdir ?? defaultWorkdir,
+    // The session answers a liveness probe and cannot signal one command
+    // without tearing down the whole sandbox.
+    provides: { ping: true },
     ...(options.commandEnv === undefined ? {} : { env: options.commandEnv }),
     ...(options.egress === undefined ? {} : { egress: options.egress })
   })

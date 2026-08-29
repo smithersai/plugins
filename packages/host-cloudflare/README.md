@@ -29,7 +29,7 @@ than one this package invented.
 ## D1
 
 `D1` builds SQLite descriptors over Durable Object storage and over D1. The D1
-descriptor reports `supportsTransactions: false` — D1's HTTP API has no
+descriptor reports `supportsTransactions: false`. D1's HTTP API has no
 transaction that survives across round trips, and a descriptor that claimed
 otherwise would let a caller write code whose rollback silently does nothing.
 Reserve D1 for read-mostly work. Durable Object storage, which does hold a

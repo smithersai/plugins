@@ -3,10 +3,11 @@
  *
  * Two execution modes, and the difference is not cosmetic. `exec` runs a
  * command and answers when it finishes. `process` starts a detached process
- * and answers immediately with a pid — which is why this host waits for the
- * exit and reconciles the outcome exactly as `exec` mode does. Returning a
- * bare pid as a finished result is a silent success: the caller gets nothing
- * back and never learns the command failed.
+ * and answers immediately with a handle, which is why this host waits for the
+ * exit and then fetches the process log, so both modes answer the same three
+ * things: standard output, standard error, and an exit code. Returning a bare
+ * handle as a finished result is a silent success: the caller gets nothing back
+ * and never learns the command failed.
  *
  * `sleepAfter` is the idle-hibernation window and the main container cost
  * lever; it is passed straight through, and the SDK default applies when the
@@ -30,11 +31,11 @@ const defaultWorkdir = "/workspace"
  * @category models
  * @since 1.0.0
  */
-export interface Options {
+export interface Options<Binding = unknown> {
   /** The SDK's sandbox resolver, supplied by the caller. */
-  readonly getSandbox: Sdk.GetSandbox
+  readonly getSandbox: Sdk.GetSandbox<Binding>
   /** The Durable Object binding the sandbox lives behind. */
-  readonly binding: unknown
+  readonly binding: Binding
   /** The provider-neutral session key; the remote sandbox id is derived from it. */
   readonly session: string
   /**
@@ -65,9 +66,6 @@ const attempt = <A>(
     catch: (cause) => failed(`${what}: ${cause instanceof Error ? cause.message : String(cause)}`)
   })
 
-const textOf = (value: string | { readonly content: string }): string =>
-  typeof value === "string" ? value : value.content
-
 const definedEnv = (
   env: Readonly<Record<string, string | undefined>> | undefined
 ): Readonly<Record<string, string>> =>
@@ -81,8 +79,8 @@ const definedEnv = (
  * @category constructors
  * @since 1.0.0
  */
-export const session = (
-  options: Options
+export const session = <Binding>(
+  options: Options<Binding>
 ): (session: string) => Effect.Effect<Session.Session, RemoteChildProcessSpawner.ProviderError> =>
 (key) =>
   Effect.gen(function*() {
@@ -96,9 +94,7 @@ export const session = (
         }),
       catch: (cause) => failed(`binding: ${cause instanceof Error ? cause.message : String(cause)}`)
     })
-    if (sandbox.mkdir !== undefined) {
-      yield* Effect.ignore(attempt(() => sandbox.mkdir?.(workdir) ?? Promise.resolve(), "mkdir"))
-    }
+    yield* Effect.ignore(attempt(() => sandbox.mkdir(workdir, { recursive: true }), "mkdir"))
 
     const execMode = (
       command: string,
@@ -108,9 +104,9 @@ export const session = (
       Effect.map(
         attempt(() => sandbox.exec(command, { cwd, env }), "exec failed"),
         (result) => ({
-          stdout: Stream.make(new TextEncoder().encode(result.stdout ?? "")),
-          stderr: Stream.make(new TextEncoder().encode(result.stderr ?? "")),
-          exitCode: Effect.succeed(result.exitCode ?? 0)
+          stdout: Stream.make(new TextEncoder().encode(result.stdout)),
+          stderr: Stream.make(new TextEncoder().encode(result.stderr)),
+          exitCode: Effect.succeed(result.exitCode)
         })
       )
 
@@ -119,27 +115,24 @@ export const session = (
       cwd: string,
       env: Readonly<Record<string, string>>
     ) =>
+      // A detached start answers a handle, not an outcome. Waiting for the exit
+      // and then reading the process log is what makes process mode report the
+      // same three things exec mode does; answering an exit code with two empty
+      // streams would lose everything the command wrote.
       Effect.map(
         attempt(
-          () =>
-            sandbox.startProcess === undefined
-              ? Promise.reject(new Error("the SDK exposes no startProcess"))
-              : sandbox.startProcess(command, { cwd, env }),
-          "startProcess failed"
+          async () => {
+            const started = await sandbox.startProcess(command, { cwd, env })
+            const exit = await started.waitForExit()
+            const logs = await started.getLogs()
+            return { exitCode: exit.exitCode ?? started.exitCode ?? 1, ...logs }
+          },
+          "process failed"
         ),
-        (started) => ({
-          stdout: Stream.empty as Stream.Stream<Uint8Array, RemoteChildProcessSpawner.ProviderError>,
-          stderr: Stream.empty as Stream.Stream<Uint8Array, RemoteChildProcessSpawner.ProviderError>,
-          // A detached start answers with a pid, not an outcome. Waiting here
-          // is what keeps process mode from reporting success for a command
-          // that failed.
-          exitCode: attempt(
-            async () => {
-              const exit = started.waitForExit === undefined ? undefined : await started.waitForExit()
-              return exit?.exitCode ?? started.exitCode ?? 1
-            },
-            "waitForExit failed"
-          )
+        (result) => ({
+          stdout: Stream.make(new TextEncoder().encode(result.stdout)),
+          stderr: Stream.make(new TextEncoder().encode(result.stderr)),
+          exitCode: Effect.succeed(result.exitCode)
         })
       )
 
@@ -147,7 +140,8 @@ export const session = (
       remoteId: key,
       writeFile: (path, content) =>
         attempt(() => sandbox.writeFile(path, content, { encoding: "utf-8" }), `write ${path}`),
-      readFile: (path) => Effect.map(attempt(() => sandbox.readFile(path), `read ${path}`), textOf),
+      readFile: (path) =>
+        Effect.map(attempt(() => sandbox.readFile(path), `read ${path}`), (result) => result.content),
       exec: (command, execOptions) => {
         const cwd = execOptions.cwd ?? workdir
         const env = definedEnv(execOptions.env)
@@ -165,14 +159,17 @@ export const session = (
  * @category constructors
  * @since 1.0.0
  */
-export const make = (
-  options: Options
+export const make = <Binding>(
+  options: Options<Binding>
 ): Result.Result<RemoteChildProcessSpawner.Provider, ProviderKitError.ProviderKitError> =>
   CommandProvider.make({
     id: providerId,
     session: options.session,
     open: session(options),
     workdir: options.workdir ?? defaultWorkdir,
+    // The session answers a liveness probe and cannot signal one command
+    // without tearing down the whole sandbox.
+    provides: { ping: true },
     ...(options.env === undefined ? {} : { env: options.env }),
     ...(options.egress === undefined ? {} : { egress: options.egress })
   })

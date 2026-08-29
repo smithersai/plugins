@@ -5,7 +5,10 @@
  * declaration, so what is asserted is the mapping: which credential goes on
  * the wire, and how a lifetime longer than one create allows is reached.
  */
+import { Conformance } from "@smthrs-plugins/provider-kit"
+import { ProviderConformance } from "@smthrs/sandbox"
 import { Effect, Result, Stream } from "effect"
+import { Readable } from "node:stream"
 import { describe, expect, it } from "vitest"
 import * as Credentials from "../src/Credentials.ts"
 import type * as Sdk from "../src/Sdk.ts"
@@ -18,19 +21,44 @@ interface Recorded {
   readonly stopped: Array<true>
 }
 
+/**
+ * A guest with a real file system and three interpretable commands.
+ *
+ * The vendor answers a file as a readable stream, never as text, so the double
+ * answers one too. A double that answered a string would agree with the host's
+ * old bug instead of catching it.
+ */
 const mockSdk = (): { readonly sdk: Sdk.Sdk; readonly recorded: Recorded } => {
   const recorded: Recorded = { created: [], extended: [], commands: [], stopped: [] }
+  const files = new Map<string, string>()
   const sdk: Sdk.Sdk = {
     Sandbox: {
       create: (input) => {
         recorded.created.push(input)
         const sandbox: Sdk.Sandbox = {
-          sandboxId: "sbx_1",
-          writeFiles: () => Promise.resolve(),
-          readFile: () => Promise.resolve("contents"),
+          name: "sbx_1",
+          writeFiles: (written) => {
+            for (const file of written) {
+              files.set(
+                file.path,
+                typeof file.content === "string" ? file.content : new TextDecoder().decode(file.content)
+              )
+            }
+            return Promise.resolve()
+          },
+          readFile: (file) => {
+            const content = files.get(file.path)
+            return Promise.resolve(content === undefined ? null : Readable.from([content]))
+          },
           runCommand: (command) => {
             recorded.commands.push(command)
-            return Promise.resolve({ exitCode: 0, stdout: () => Promise.resolve("done") })
+            const line = command.args?.[1] ?? ""
+            const script = scripts[line]
+            return Promise.resolve({
+              exitCode: script?.exitCode ?? 0,
+              stdout: () => Promise.resolve(script === undefined ? "done" : script.stdout ?? ""),
+              stderr: () => Promise.resolve(script?.stderr ?? "")
+            })
           },
           extendTimeout: (millis) => {
             recorded.extended.push(millis)
@@ -46,6 +74,30 @@ const mockSdk = (): { readonly sdk: Sdk.Sdk; readonly recorded: Recorded } => {
     }
   }
   return { sdk, recorded }
+}
+
+/**
+ * What the guest "runs".
+ *
+ * Single tokens on purpose. `ProviderConformance` renders its fixture through
+ * `CommandLine.render`, which quotes anything with a space, so a multi-word
+ * fixture would reach the guest as one quoted word and be reported as a
+ * conformance violation of the suite rather than of the host.
+ */
+const scripts: Record<string, { readonly stdout?: string; readonly stderr?: string; readonly exitCode?: number }> = {
+  greet: { stdout: "hello" },
+  complain: { stderr: "oops" },
+  boom: { exitCode: 3 },
+  serve: {}
+}
+
+const commands = {
+  writes: "greet",
+  output: "hello",
+  writesToStderr: "complain",
+  errorOutput: "oops",
+  fails: "boom",
+  failureCode: 3
 }
 
 describe("Credentials.resolve", () => {
@@ -141,6 +193,54 @@ describe("VercelSandbox", () => {
     expect(text).toBe("done")
     expect(recorded.commands[0]).toMatchObject({ cmd: "sh", args: ["-lc", "pnpm test"] })
     expect(recorded.commands[0]?.env?.["HTTP_PROXY"]).toBe("http://proxy:1")
+  })
+
+  it("passes the shared session conformance suite", async () => {
+    const { sdk } = mockSdk()
+    const violations = await Effect.runPromise(Conformance.check({
+      open: VercelSandbox.session({ sdk, session: "run-1" }),
+      probePath: "/vercel/sandbox/.smithers/probe.txt",
+      ...commands
+    }))
+
+    expect(Conformance.format(violations)).toBe("session conforms")
+  })
+
+  it("passes the sandbox provider conformance suite", async () => {
+    const { sdk } = mockSdk()
+    const provider = Result.getOrThrow(VercelSandbox.make({ sdk, session: "run-1" }))
+
+    const violations = await Effect.runPromise(ProviderConformance.check(provider, {
+      writes: commands.writes,
+      output: commands.output,
+      fails: commands.fails,
+      failureCode: commands.failureCode,
+      runs: "serve"
+    }))
+
+    expect(ProviderConformance.format(violations)).toBe("provider conforms")
+  })
+
+  it("reads a file the vendor does not have as empty text", async () => {
+    const { sdk } = mockSdk()
+
+    const text = await Effect.runPromise(Effect.scoped(Effect.flatMap(
+      VercelSandbox.session({ sdk, session: "run-1" })("run-1"),
+      (session) => session.readFile("/vercel/sandbox/missing")
+    )))
+
+    expect(text).toBe("")
+  })
+
+  it("reports the vendor's own sandbox name as the remote id", async () => {
+    const { sdk } = mockSdk()
+
+    const remoteId = await Effect.runPromise(Effect.scoped(Effect.map(
+      VercelSandbox.session({ sdk, session: "run-1" })("run-1"),
+      (session) => session.remoteId
+    )))
+
+    expect(remoteId).toBe("sbx_1")
   })
 
   it("stops the sandbox when the scope closes", async () => {

@@ -16,7 +16,7 @@ vendor SDK through `Sdk`, a structural slice rather than a package dependency.
 
 The order is not arbitrary, and `Credentials` is where it is written down:
 
-1. An explicitly configured OIDC token — the most specific thing a caller can
+1. An explicitly configured OIDC token, the most specific thing a caller can
    say.
 2. The ambient `VERCEL_OIDC_TOKEN`, which a Vercel deployment injects.
 3. A personal access token, which needs its team and project named alongside it
