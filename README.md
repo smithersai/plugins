@@ -61,9 +61,19 @@ sed -i '' 's|../smithers-v1|../smithers-v1-worktree|' pnpm-workspace.yaml
 Each host package declares its vendor SDK (`@cloudflare/sandbox`,
 `@vercel/sandbox`, `microsandbox`) as an optional peer dependency and carries a
 structural slice of it, so the package builds and type-checks with no vendor
-account. A conformance suite per host proves the slice still matches the real
-package, and the real-backend suites run against a live sandbox when the
-credential is present and skip with the missing variable named when it is not.
+account. A conformance suite per host compiles the slice against the vendor's
+own declarations, and every one of them is red-checked: drift a member the host
+calls and the `check` gate fails.
+
+`host-vercel` compiles both halves of its `^2.0.0 || ^3.0.0` peer range — the
+2.x devDependency plus a `@vercel/sandbox-3` install alias for the 3.x major —
+so neither half is a promise nobody checks. `host-cloudflare` asserts at compile
+time only: `@cloudflare/sandbox` resolves `@cloudflare/containers` under the
+`workerd` export condition alone, so importing it from Node fails before any
+runtime assertion could run.
+
+The real-backend suites run against a live sandbox when the credential is
+present and skip with the missing variable named when it is not.
 
 ## Why these live outside the engine
 
