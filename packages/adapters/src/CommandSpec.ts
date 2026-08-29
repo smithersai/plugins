@@ -1,7 +1,7 @@
 /**
  * Pure command descriptions shared by CLI adapters.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 
 /**
@@ -11,7 +11,7 @@
  * Hosts with a string-only shell API execute the POSIX-quoted rendering.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CommandSpec {
   readonly command: string
@@ -26,7 +26,7 @@ export interface CommandSpec {
  * A durable CLI conversation identifier supplied to a command builder.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface ResumeState {
   readonly sessionId: string
@@ -38,7 +38,7 @@ export interface ResumeState {
  * Adapters project these vendor-neutral values into their own argv format.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Options {
   /**
@@ -77,7 +77,7 @@ export interface Options {
  * when a session is resumed.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type Builder = (options: Options, resume?: ResumeState | undefined) => CommandSpec
 
@@ -85,7 +85,7 @@ export type Builder = (options: Options, resume?: ResumeState | undefined) => Co
  * Invokes the same builder with durable resume state.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const withResume = (builder: Builder, options: Options, resume: ResumeState): CommandSpec =>
   builder(options, resume)
@@ -94,7 +94,7 @@ export const withResume = (builder: Builder, options: Options, resume: ResumeSta
  * Quotes one value for a POSIX-shell command line.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const quoteArg = (value: string): string => {
   if (value.length === 0) return "''"
@@ -106,7 +106,7 @@ export const quoteArg = (value: string): string => {
  * Renders an argv vector for protected POSIX-shell execution or diagnostics.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const renderArgv = (spec: Pick<CommandSpec, "command" | "args">): string =>
   [spec.command, ...spec.args].map(quoteArg).join(" ")
@@ -119,7 +119,7 @@ export const renderArgv = (spec: Pick<CommandSpec, "command" | "args">): string 
  * invariant for a particular adapter command pair.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const flagDiff = (fresh: CommandSpec, resumed: CommandSpec): ReadonlyArray<string> => {
   const resumedFlags = new Set(resumed.args.filter((argument) => argument.startsWith("-")))
@@ -131,7 +131,7 @@ export const flagDiff = (fresh: CommandSpec, resumed: CommandSpec): ReadonlyArra
  * command.
  *
  * @category assertions
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const assertResumePreservesFlags = (fresh: CommandSpec, resumed: CommandSpec): void => {
   const missing = flagDiff(fresh, resumed)

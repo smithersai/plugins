@@ -22,7 +22,7 @@ the engine changes to accept this layer.
 
 `Pool` orders candidates by measured headroom, breaks ties with a seeded
 shuffle, and puts accounts a provider has already blocked last rather than
-dropping them — a pool with nothing but blocked accounts should still answer,
+dropping them. A pool with nothing but blocked accounts should still answer,
 and a block whose reset has passed is usable again. `blockedUntilMs` comes from
 `@smthrs-plugins/usage` `QuotaState` and is compared against the clock, so a
 seat returns to the front of the pool on its own.

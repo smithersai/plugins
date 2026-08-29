@@ -3,7 +3,7 @@
  *
  * Governing contract: `docs/specs/Concepts/Structured Output.md`.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import { CanonicalJson } from "@smthrs/model"
 import { Effect } from "effect"
@@ -14,7 +14,7 @@ import { digest } from "./HarnessCapabilities.ts"
  * JSON Schema material accepted by a CLI adapter.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type JsonSchema = boolean | Readonly<Record<string, unknown>>
 
@@ -22,7 +22,7 @@ export type JsonSchema = boolean | Readonly<Record<string, unknown>>
  * A fixed schema and correction policy for one CLI attempt.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Contract {
   readonly schema: JsonSchema
@@ -34,7 +34,7 @@ export interface Contract {
  * The result of extracting and validating one CLI response.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type Validation =
   | {
@@ -227,7 +227,7 @@ const candidates = (value: unknown): ReadonlyArray<unknown> => {
  * Constructs a canonical one-correction structured-output contract.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const make = (schema: JsonSchema): Contract => ({
   schema,
@@ -295,7 +295,7 @@ export const vendorSchema = (schema: JsonSchema): JsonSchema => {
  * Renders the exact schema supplied to the local validator.
  *
  * @category formatting
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const renderSchema = (contract: Contract): string => JSON.stringify(contract.schema, null, 2)
 
@@ -315,7 +315,7 @@ export const renderVendorSchema = (contract: Contract): string =>
  * Extracts complete or rightmost balanced JSON and validates it locally.
  *
  * @category validation
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const validate = (value: unknown, contract: Contract): Validation => {
   let lastDigest: string | undefined
@@ -340,7 +340,7 @@ export const validate = (value: unknown, contract: Contract): Validation => {
  * Renders the bounded correction prompt for one invalid candidate.
  *
  * @category formatting
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const correctionPrompt = (contract: Contract, validation: Extract<Validation, { _tag: "Invalid" }>): string =>
   [
@@ -354,7 +354,7 @@ export const correctionPrompt = (contract: Contract, validation: Extract<Validat
  * Constructs the terminal typed failure after the correction slot is spent.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const failure = (
   contract: Contract,
@@ -374,7 +374,7 @@ export const failure = (
  * Fails with the stable typed structured-output error when validation fails.
  *
  * @category validation
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const decode = (
   value: unknown,

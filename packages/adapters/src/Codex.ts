@@ -7,7 +7,7 @@
  * flags are projected through `-c` when an equivalent exists; profiles are
  * rejected on resume because the CLI exposes no compatible profile flag.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import { Effect } from "effect"
 import * as AdapterError from "./AdapterError.ts"
@@ -329,7 +329,7 @@ const preflight = (
  * Codex's declarative CLI harness specification.
  *
  * @category adapters
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const spec: Spec.Spec = {
   capabilities,

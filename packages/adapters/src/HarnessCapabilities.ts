@@ -6,7 +6,7 @@
  * `docs/specs/Concepts/Plan.md`, and
  * `docs/specs/Concepts/Step Keys.md`.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import * as Digest from "@smthrs/core/Digest"
 import { CanonicalJson } from "@smthrs/model"
@@ -16,7 +16,7 @@ import { HashMap, type Option, Schema } from "effect"
  * Supported vendor session-resume mechanisms.
  *
  * @category schemas
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const ResumeMode = Schema.Literals(["flag", "subcommand", "env", "none"])
 
@@ -24,7 +24,7 @@ export const ResumeMode = Schema.Literals(["flag", "subcommand", "env", "none"])
  * Supported vendor session-resume mechanisms.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type ResumeMode = typeof ResumeMode.Type
 
@@ -32,7 +32,7 @@ export type ResumeMode = typeof ResumeMode.Type
  * Supported MCP bootstrap mechanisms.
  *
  * @category schemas
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const McpBootstrapMode = Schema.Literals(["inline-config", "project-config", "none"])
 
@@ -40,7 +40,7 @@ export const McpBootstrapMode = Schema.Literals(["inline-config", "project-confi
  * Supported MCP bootstrap mechanisms.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type McpBootstrapMode = typeof McpBootstrapMode.Type
 
@@ -48,7 +48,7 @@ export type McpBootstrapMode = typeof McpBootstrapMode.Type
  * Supported skill-installation mechanisms.
  *
  * @category schemas
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const SkillsInstallMode = Schema.Literals(["plugin-dir", "home-dir", "none"])
 
@@ -56,7 +56,7 @@ export const SkillsInstallMode = Schema.Literals(["plugin-dir", "home-dir", "non
  * Supported skill-installation mechanisms.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type SkillsInstallMode = typeof SkillsInstallMode.Type
 
@@ -64,7 +64,7 @@ export type SkillsInstallMode = typeof SkillsInstallMode.Type
  * Stable capability declaration for one foreign harness version.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class HarnessCapabilities extends Schema.Class<HarnessCapabilities>(
   "@smthrs-plugins/adapters/HarnessCapabilities"
@@ -85,7 +85,7 @@ export class HarnessCapabilities extends Schema.Class<HarnessCapabilities>(
  * Immutable registry of harness capability records keyed by harness name.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Registry {
   readonly records: HashMap.HashMap<string, HarnessCapabilities>
@@ -96,7 +96,7 @@ export interface Registry {
  * Capability material exposed to plan and run cards.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface PlanCardMaterial {
   readonly harness: string
@@ -116,7 +116,7 @@ export interface PlanCardMaterial {
  * Computes a synchronous SHA-256 digest over canonical JSON.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const digest = (value: unknown): string => {
   return Digest.digest(CanonicalJson.stringify(value))
@@ -126,7 +126,7 @@ export const digest = (value: unknown): string => {
  * Computes the stable canonical fingerprint of a capability record.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const fingerprint = (record: HarnessCapabilities): string =>
   digest({
@@ -146,7 +146,7 @@ export const fingerprint = (record: HarnessCapabilities): string =>
  * Tests whether isolated configuration state permits safe multi-seat pooling.
  *
  * @category predicates
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const eligibleForMultiSeatPool = (record: HarnessCapabilities): boolean => record.configDirIsolation === true
 
@@ -154,7 +154,7 @@ export const eligibleForMultiSeatPool = (record: HarnessCapabilities): boolean =
  * Constructs an immutable capability registry.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const makeRegistry = (
   records: Iterable<HarnessCapabilities> = []
@@ -172,7 +172,7 @@ export const makeRegistry = (
  * Returns a new registry containing the supplied capability record.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const register = (
   registry: Registry,
@@ -190,7 +190,7 @@ export const register = (
  * Looks up a capability record by harness name.
  *
  * @category getters
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const lookup = (
   registry: Registry,
@@ -204,7 +204,7 @@ export const lookup = (
  * resolver cannot accidentally admit one by forgetting a predicate.
  *
  * @category getters
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const lookupForMultiSeatPool = (
   registry: Registry,
@@ -215,7 +215,7 @@ export const lookupForMultiSeatPool = (
  * Stable layer identities contributed by one foreign-harness dispatch.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const keyLayers = (
   record: HarnessCapabilities,
@@ -233,7 +233,7 @@ export const keyLayers = (
  * Projects stable capability material for plan and run cards.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const planCardMaterial = (
   record: HarnessCapabilities

@@ -1,7 +1,7 @@
 /**
  * Declarative Claude Code CLI adapter.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import { Effect } from "effect"
 import * as AdapterError from "./AdapterError.ts"
@@ -327,7 +327,7 @@ const preflight = (
  * Claude Code's declarative CLI harness specification.
  *
  * @category adapters
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const spec: Spec.Spec = {
   capabilities,

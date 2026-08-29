@@ -3,14 +3,14 @@
  *
  * Governing contract: `docs/specs/Concepts/Agent Adapters.md`.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 
 /**
  * A string-valued environment layer. `undefined` entries are omitted.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type Environment = Readonly<Record<string, string | undefined>>
 
@@ -18,7 +18,7 @@ export type Environment = Readonly<Record<string, string | undefined>>
  * Run identity propagated to a spawned CLI and its descendants.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface RunIdentity {
   readonly runId?: string | undefined
@@ -36,7 +36,7 @@ export interface RunIdentity {
  * keys, and run identity cannot be spoofed by an adapter or override.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Layers {
   readonly processEnv?: Environment | undefined
@@ -79,7 +79,7 @@ const identityEnvironment = (identity: RunIdentity | Environment | undefined): E
  * Blanks inherited CLI recursion markers without mutating the input layer.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const scrubRecursionMarkers = (env: Environment): Readonly<Record<string, string>> => ({
   ...defined(env),
@@ -91,7 +91,7 @@ export const scrubRecursionMarkers = (env: Environment): Readonly<Record<string,
  * Blanks provider API keys unless the resolved credential layer supplies them.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const blankConflictingKeys = (
   env: Environment,
@@ -110,7 +110,7 @@ export const blankConflictingKeys = (
  * credential layer deliberately supplied them.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const merge = (layers: Layers): Readonly<Record<string, string>> => {
   const environment: Record<string, string> = {}
@@ -129,7 +129,7 @@ export const merge = (layers: Layers): Readonly<Record<string, string>> => {
  * Redacts secret-like values before an environment is recorded in diagnostics.
  *
  * @category utilities
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const redactForDiagnostics = (env: Environment): Readonly<Record<string, string>> =>
   Object.fromEntries(

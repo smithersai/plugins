@@ -9,7 +9,7 @@
  * `docs/specs/Concepts/Run Ownership.md`, and
  * `docs/specs/Concepts/Structured Output.md`.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import * as HarnessError from "@smthrs/harness/HarnessError"
 import { Effect, Schema } from "effect"
@@ -18,7 +18,7 @@ import { Effect, Schema } from "effect"
  * Stable public adapter failure codes.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const AdapterErrorCode = Schema.Literals([
   "spawn_failed",
@@ -36,7 +36,7 @@ export const AdapterErrorCode = Schema.Literals([
  * Stable public adapter failure codes.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type AdapterErrorCode = typeof AdapterErrorCode.Type
 
@@ -47,7 +47,7 @@ const code = <const Code extends AdapterErrorCode>(value: Code) =>
  * A CLI process could not be started or completed its launch protocol.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class SpawnFailed extends Schema.TaggedError<SpawnFailed>()("@smthrs-plugins/adapters/SpawnFailed", {
   code: code("spawn_failed"),
@@ -60,7 +60,7 @@ export class SpawnFailed extends Schema.TaggedError<SpawnFailed>()("@smthrs-plug
  * `resetAt` is an epoch-millisecond instant when the provider supplied one.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class QuotaExhausted extends Schema.TaggedError<QuotaExhausted>()(
   "@smthrs-plugins/adapters/QuotaExhausted",
@@ -76,7 +76,7 @@ export class QuotaExhausted extends Schema.TaggedError<QuotaExhausted>()(
  * A persisted CLI conversation cannot be resumed.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class SessionLost extends Schema.TaggedError<SessionLost>()("@smthrs-plugins/adapters/SessionLost", {
   code: code("session_lost"),
@@ -88,7 +88,7 @@ export class SessionLost extends Schema.TaggedError<SessionLost>()("@smthrs-plug
  * Adapter configuration is invalid and cannot be retried unchanged.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("@smthrs-plugins/adapters/ConfigInvalid", {
   code: code("config_invalid"),
@@ -99,7 +99,7 @@ export class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("@smthrs-
  * The CLI could not authenticate with its provider.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class AuthFailed extends Schema.TaggedError<AuthFailed>()("@smthrs-plugins/adapters/AuthFailed", {
   code: code("auth_failed"),
@@ -110,7 +110,7 @@ export class AuthFailed extends Schema.TaggedError<AuthFailed>()("@smthrs-plugin
  * The CLI emitted output that violates its adapter protocol.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class ProtocolError extends Schema.TaggedError<ProtocolError>()("@smthrs-plugins/adapters/ProtocolError", {
   code: code("protocol_error"),
@@ -121,7 +121,7 @@ export class ProtocolError extends Schema.TaggedError<ProtocolError>()("@smthrs-
  * The requested CLI executable is unavailable.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class BinaryMissing extends Schema.TaggedError<BinaryMissing>()("@smthrs-plugins/adapters/BinaryMissing", {
   code: code("binary_missing"),
@@ -132,7 +132,7 @@ export class BinaryMissing extends Schema.TaggedError<BinaryMissing>()("@smthrs-
  * The requested operation is not supported by this adapter.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class Unsupported extends Schema.TaggedError<Unsupported>()("@smthrs-plugins/adapters/Unsupported", {
   code: code("unsupported"),
@@ -143,7 +143,7 @@ export class Unsupported extends Schema.TaggedError<Unsupported>()("@smthrs-plug
  * A CLI response exhausted its declared structured-output correction budget.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export class StructuredOutputFailure extends Schema.TaggedError<StructuredOutputFailure>()(
   "@smthrs-plugins/adapters/StructuredOutputFailure",
@@ -162,7 +162,7 @@ export class StructuredOutputFailure extends Schema.TaggedError<StructuredOutput
  * Every typed failure a CLI adapter may return.
  *
  * @category errors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type AdapterError =
   | SpawnFailed
@@ -180,7 +180,7 @@ export type AdapterError =
  * typed adapter failure as its cause.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const toHarnessError = (error: AdapterError): HarnessError.HarnessError =>
   new HarnessError.HarnessError({

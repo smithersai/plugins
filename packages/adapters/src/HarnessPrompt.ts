@@ -3,7 +3,7 @@
  *
  * Governing contract: `docs/specs/Concepts/System Prompt.md`.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import type { HarnessCapabilities } from "./HarnessCapabilities.ts"
 import { digest } from "./HarnessCapabilities.ts"
@@ -17,7 +17,7 @@ import { renderSchema } from "./StructuredOutput.ts"
  * omitted for harnesses with native structured output.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Sections {
   readonly worktreeIsolationNotice: string
@@ -31,7 +31,7 @@ export interface Sections {
  * One assembled system channel and its stable step-key digest.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Assembled {
   readonly system: string
@@ -44,7 +44,7 @@ const section = (title: string, content: string): string => `## ${title}\n\n${co
  * Assembles exactly one deterministic system-channel string.
  *
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const assemble = (
   capabilities: HarnessCapabilities,

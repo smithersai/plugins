@@ -5,7 +5,7 @@
  * adapter interprets each JSON value as a {@link CliRecord}; this module then
  * performs the shared UTF-8, answer, and usage work.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import * as ModelRequest from "@smthrs/model/ModelRequest"
@@ -13,7 +13,7 @@ import { Stream } from "effect"
 
 /** A provider-neutral tool call in a CLI record.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliToolCall {
   readonly id?: string | undefined
@@ -23,7 +23,7 @@ export interface CliToolCall {
 
 /** A CLI record which announces the beginning of a turn.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliTurnOpened {
   readonly type: "turnOpened"
@@ -36,7 +36,7 @@ export interface CliTurnOpened {
 
 /** A streamed text, reasoning, or tool-call delta.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliDelta {
   readonly type: "delta"
@@ -47,7 +47,7 @@ export interface CliDelta {
 
 /** Token accounting reported by a CLI.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliUsage {
   readonly type: "usage"
@@ -69,7 +69,7 @@ export interface CliUsage {
 
 /** An opaque session token which can be used by a later harness invocation.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliResumeToken {
   readonly type: "resumeToken"
@@ -78,7 +78,7 @@ export interface CliResumeToken {
 
 /** The semantic assistant answer emitted by a CLI.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliSettled {
   readonly type: "settled"
@@ -89,7 +89,7 @@ export interface CliSettled {
 
 /** A structured result which has completed semantic parsing.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliResolved {
   readonly type: "resolved"
@@ -99,7 +99,7 @@ export interface CliResolved {
 
 /** The terminal status of a CLI process.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliClosed {
   readonly type: "closed"
@@ -115,7 +115,7 @@ export interface CliClosed {
  * call before emitting the result.
  *
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface CliToolResult {
   readonly type: "toolResult"
@@ -129,7 +129,7 @@ export interface CliToolResult {
 
 /** The vendor-neutral output record understood by this package.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type CliRecord =
   | CliTurnOpened
@@ -143,7 +143,7 @@ export type CliRecord =
 
 /** An incremental decoder for UTF-8 text and CR/LF-delimited lines.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface LineDecoder {
   readonly push: (chunk: Uint8Array | string) => ReadonlyArray<string>
@@ -152,7 +152,7 @@ export interface LineDecoder {
 
 /** Creates an incremental UTF-8 line decoder suitable for NDJSON streams.
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const makeLineDecoder = (): LineDecoder => {
   const decoder = new TextDecoder()
@@ -195,7 +195,7 @@ export const makeLineDecoder = (): LineDecoder => {
  * decode UTF-8 chunks, then split CR/LF-delimited lines.
  *
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const decodeNdjsonStream = <E, R>(
   stream: Stream.Stream<Uint8Array, E, R>
@@ -203,7 +203,7 @@ export const decodeNdjsonStream = <E, R>(
 
 /** Parses one line, returning `undefined` for blank, banner, or malformed lines.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const parseNdjsonLine = (line: string): unknown | undefined => {
   const trimmed = line.trim()
@@ -217,7 +217,7 @@ export const parseNdjsonLine = (line: string): unknown | undefined => {
 
 /** Parses NDJSON lines while tolerating non-JSON banners and diagnostics.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const parseNdjsonLines = (lines: Iterable<string>): ReadonlyArray<unknown> => {
   const values: Array<unknown> = []
@@ -230,7 +230,7 @@ export const parseNdjsonLines = (lines: Iterable<string>): ReadonlyArray<unknown
 
 /** Decodes byte/string chunks into JSON values, ignoring non-JSON banner lines.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const decodeNdjsonChunks = (chunks: Iterable<Uint8Array | string>): ReadonlyArray<unknown> => {
   const decoder = makeLineDecoder()
@@ -242,7 +242,7 @@ export const decodeNdjsonChunks = (chunks: Iterable<Uint8Array | string>): Reado
 
 /** Returns the stable identifier assigned to a record-derived model part.
  * @category constructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const stableRecordId = (stepDigest: string, recordIndex: number, part = "record"): string =>
   `${stepDigest}:${recordIndex}:${part}`
@@ -261,7 +261,7 @@ const recordValue = (value: unknown, ...keys: ReadonlyArray<string>): unknown =>
 
 /** Normalizes common snake-case and camel-case CLI usage fields.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const normalizeUsage = (
   value: CliUsage | Readonly<Record<string, unknown>>
@@ -320,13 +320,13 @@ const textOf = (value: unknown): string => {
 
 /** The source selected by the answer-resolution priority ladder.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export type AnswerSource = "structured" | "assistant" | "stdout-tail" | "empty"
 
 /** The resolved answer and the source from which it was selected.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface AnswerResolution {
   readonly text: string
@@ -339,7 +339,7 @@ export interface AnswerResolution {
  * assistant message, then stdout tail. Stderr is intentionally not accepted.
  *
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const resolveAnswer = (
   records: Iterable<CliRecord>,
@@ -360,7 +360,7 @@ export const resolveAnswer = (
 
 /** Resolves an answer as text, retaining the same semantic priority ladder.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const resolveAnswerText = (records: Iterable<CliRecord>, stdoutTail = ""): string =>
   resolveAnswer(records, stdoutTail).text
@@ -385,7 +385,7 @@ const takeUtf8Suffix = (text: string, byteBudget: number): string => {
  * emitted last and must survive even when raw CLI output is truncated.
  *
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const truncateTailKeep = (text: string, byteBudget: number): string => {
   const encoder = new TextEncoder()
@@ -399,6 +399,6 @@ export const truncateTailKeep = (text: string, byteBudget: number): string => {
 
 /** Backwards-friendly name for the Effect-style NDJSON stream decoder.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const decodeLines = decodeNdjsonStream

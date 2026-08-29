@@ -39,7 +39,7 @@ answer is deterministic in a test.
 
 ## Why the state is durable
 
-A quota refusal is expensive to learn — it costs a request, and on a
+A quota refusal is expensive to learn. It costs a request, and on a
 subscription CLI it can cost a turn. Recording the refusal with its reset time
 means a restarted process skips the seat until the window rolls over, instead of
 paying to find out again.

@@ -10,14 +10,14 @@
  * non-zero exit. A known semantic failure therefore cannot be hidden by a
  * later benign diagnostic line.
  *
- * @since 0.1.0
+ * @since 1.0.0
  */
 import * as AdapterError from "./AdapterError.ts"
 import { truncateTailKeep } from "./CliOutput.ts"
 
 /** A regular-expression pattern set supplied to the pure classifier.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface Patterns {
   readonly quota: ReadonlyArray<RegExp>
@@ -30,7 +30,7 @@ export interface Patterns {
 
 /** Input to {@link classify}.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export interface ClassificationInput {
   readonly exitCode: number | null | undefined
@@ -42,7 +42,7 @@ export interface ClassificationInput {
 
 /** A declarative set of default patterns used by CLI adapters.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const defaultPatterns: Patterns = {
   quota: [
@@ -115,13 +115,13 @@ export const defaultPatterns: Patterns = {
 
 /** Default patterns for the Claude Code adapter.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const claudeCodePatterns: Patterns = defaultPatterns
 
 /** Default patterns for the Codex adapter.
  * @category models
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const codexPatterns: Patterns = defaultPatterns
 
@@ -279,7 +279,7 @@ const inputOf = (
 
 /** Returns whether stderr consists only of an allowlisted benign notice.
  * @category predicates
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const isBenignStderr = (stderr: string, patterns: Patterns = defaultPatterns): boolean => {
   const lines = stripAnsi(stderr).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -292,7 +292,7 @@ export const isBenignStderr = (stderr: string, patterns: Patterns = defaultPatte
  * ProtocolError so callers never silently lose a failed process.
  *
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export function classify(input: ClassificationInput): AdapterError.AdapterError | undefined
 export function classify(
@@ -352,12 +352,12 @@ export function classify(
 
 /** Alias emphasizing that records and stderr are classified as one CLI result.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const classifyCliOutput = classify
 
 /** Alias used by adapter specs when classifying a process termination.
  * @category destructors
- * @since 0.1.0
+ * @since 1.0.0
  */
 export const classifyTermination = classify
