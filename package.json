@@ -16,11 +16,9 @@
     "packages/host-microsandbox"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "check": "npm run check --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "format": "npm run format --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "check": "pnpm -r --if-present run check",
+    "test": "pnpm -r --if-present run test",
+    "coverage": "pnpm -r --if-present run coverage"
   },
   "devDependencies": {
     "@types/node": "25.9.5",

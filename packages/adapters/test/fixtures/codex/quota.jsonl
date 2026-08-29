@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"0198a9d3-607a-7b23-906a-b606913e8cb3"}
+{"type":"turn.started"}
+{"type":"error","message":"You have reached your usage limit. Try again at Jul 29th, 2026 9:54 AM.","code":"usage_limit_reached"}
+{"type":"turn.failed","error":{"message":"You have reached your usage limit. Try again at Jul 29th, 2026 9:54 AM.","code":"usage_limit_reached"}}
