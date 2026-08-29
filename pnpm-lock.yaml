@@ -67,6 +67,12 @@ importers:
       '@smthrs-plugins/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@smthrs-plugins/seat-resolver':
+        specifier: workspace:*
+        version: link:../seat-resolver
+      '@smthrs-plugins/usage':
+        specifier: workspace:*
+        version: link:../usage
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5

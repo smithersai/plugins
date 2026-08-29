@@ -86,7 +86,9 @@ the caller.
 credentials, and the capability registry against recorded vendor transcripts.
 
 `SMITHERS_ADAPTER_SMOKE=1 vitest run test/RealCli.smoke.test.ts` runs Claude Code
-and Codex against the binaries installed on the machine, resolving seats from
-`@smthrs-plugins/accounts` and failing over the way a pool does. It spends a real
-subscription turn, so it is off by default. A machine with no binary, or no seat
-that answers, skips with the reason named — never a fabricated pass.
+and Codex against the binaries installed on the machine, on the seats
+`@smthrs-plugins/seat-resolver` `Pool.order` hands back, failing over to the next
+rung when one refuses. That joins the two halves the rest of the suite proves
+separately: the pool policy and the adapter that runs on its choice. It spends a
+real subscription turn, so it is off by default. A machine with no binary, or no
+seat that answers, skips with the reason named — never a fabricated pass.

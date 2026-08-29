@@ -13,6 +13,8 @@
  */
 import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node"
 import { Accounts } from "@smthrs-plugins/accounts"
+import { Pool } from "@smthrs-plugins/seat-resolver"
+import { QuotaState } from "@smthrs-plugins/usage"
 import { Effect, Layer } from "effect"
 import { execFileSync } from "node:child_process"
 import { homedir } from "node:os"
@@ -47,12 +49,19 @@ const environment = (): Record<string, string> =>
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
   )
 
-const registryLayer = Accounts.layer.pipe(
-  Layer.provide(Layer.mergeAll(
-    NodeFileSystem.layer,
-    NodePath.layer,
-    Accounts.layerConfigFromEnv(process.env, homedir()).pipe(Layer.provide(NodePath.layer))
-  ))
+// The registry and the quota store, over the machine's real Smithers home.
+const platform = Layer.merge(NodeFileSystem.layer, NodePath.layer)
+
+const accountsConfig = Accounts.layerConfigFromEnv(process.env, homedir()).pipe(Layer.provide(NodePath.layer))
+
+const usageRoot = Layer.effect(
+  QuotaState.UsageRoot,
+  Effect.map(Accounts.AccountsConfig, (config) => QuotaState.UsageRoot.of({ root: config.root }))
+).pipe(Layer.provide(accountsConfig))
+
+const registryLayer = Layer.mergeAll(
+  Accounts.layer.pipe(Layer.provide(Layer.mergeAll(platform, accountsConfig))),
+  QuotaState.layer.pipe(Layer.provide(Layer.mergeAll(platform, usageRoot)))
 )
 
 const ambientConfigDir = (binary: string): string =>
@@ -61,31 +70,38 @@ const ambientConfigDir = (binary: string): string =>
     : process.env["CODEX_HOME"] ?? join(homedir(), ".codex")
 
 /**
- * The seats this smoke may run on, best first.
+ * The seats this smoke may run on, in the order the pool would try them.
  *
- * Registered accounts come first, because that is where a machine that pools
- * subscriptions keeps its headless logins: the ambient `~/.claude` on a
- * developer box is frequently signed out while `~/.smithers/accounts/claude-5`
- * is not. Resolving through the real registry means the smoke exercises the
- * seats the product would have picked, not ones the test invented. The ambient
- * directory is the last candidate, for a machine with no registry at all.
+ * This is the whole point of the lane joined up: `Pool.order` is the 0.x
+ * `fallbackAgents` policy — registered accounts ordered by headroom, ties broken
+ * by a seeded shuffle, accounts a provider already blocked last — and the
+ * adapter runs on whichever account it hands back. Proving the two separately
+ * would leave the seam between them untested, and that seam is the reason a
+ * rate limit on one subscription does not stall a run.
+ *
+ * The ambient configuration directory is appended last, for a machine with no
+ * registry at all.
  */
 const seatsFor = async (binary: string): Promise<ReadonlyArray<string>> => {
   const provider = binary === "claude" ? "claude-code" : "codex"
-  const registered = await Effect.runPromise(
+  const ordered = await Effect.runPromise(
     Effect.orElseSucceed(
-      Effect.map(
-        Effect.flatMap(Accounts.Accounts, (accounts) => accounts.list),
-        (rows) =>
-          rows.flatMap((row) =>
-            row.provider === provider && typeof row.configDir === "string" ? [row.configDir] : []
-          )
-      ),
+      Effect.gen(function*() {
+        const accounts = yield* Accounts.Accounts
+        const quota = yield* QuotaState.QuotaStore
+        const rows = yield* accounts.list
+        const state = yield* quota.read()
+        // Every rung, not just the runnable one: a blocked account is stepped
+        // over here the way the pool steps over it, and the smoke still has
+        // somewhere to go when every account carries a stale block.
+        return Pool.order(rows, { providers: [provider], quota: state.entries, seed: "adapter-smoke" })
+          .flatMap((rung) => typeof rung.account.configDir === "string" ? [rung.account.configDir] : [])
+      }),
       (): ReadonlyArray<string> => []
     ).pipe(Effect.provide(registryLayer))
   )
   const ambient = ambientConfigDir(binary)
-  return registered.includes(ambient) ? registered : [...registered, ambient]
+  return ordered.includes(ambient) ? ordered : [...ordered, ambient]
 }
 
 /** Failures that mean "this seat is spent", so the pool moves to the next one. */

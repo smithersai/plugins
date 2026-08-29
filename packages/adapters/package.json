@@ -36,6 +36,8 @@
     "typescript": "6.0.3",
     "vitest": "4.1.9",
     "@effect/platform-node": "link:../../../smithers-v1/node_modules/@effect/platform-node",
-    "@smthrs-plugins/accounts": "workspace:*"
+    "@smthrs-plugins/accounts": "workspace:*",
+    "@smthrs-plugins/seat-resolver": "workspace:*",
+    "@smthrs-plugins/usage": "workspace:*"
   }
 }
