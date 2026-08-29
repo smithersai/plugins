@@ -82,9 +82,6 @@ importers:
       '@smthrs-plugins/provider-kit':
         specifier: workspace:*
         version: link:../provider-kit
-      '@smthrs/kernel':
-        specifier: link:../../../smithers-v1/packages/kernel
-        version: link:../../../smithers-v1/packages/kernel
       '@smthrs/sandbox':
         specifier: link:../../../smithers-v1/packages/sandbox
         version: link:../../../smithers-v1/packages/sandbox
@@ -129,9 +126,6 @@ importers:
       '@smthrs-plugins/provider-kit':
         specifier: workspace:*
         version: link:../provider-kit
-      '@smthrs/kernel':
-        specifier: link:../../../smithers-v1/packages/kernel
-        version: link:../../../smithers-v1/packages/kernel
       '@smthrs/sandbox':
         specifier: link:../../../smithers-v1/packages/sandbox
         version: link:../../../smithers-v1/packages/sandbox

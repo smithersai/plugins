@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
     "@smthrs/sandbox": "link:../../../smithers-v1/packages/sandbox",
     "@smthrs-plugins/provider-kit": "workspace:*"
   },
