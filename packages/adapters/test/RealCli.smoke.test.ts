@@ -4,9 +4,10 @@
  * Not a mock and not a fixture replay: this spawns the vendor CLI that is
  * installed on the machine, on the account the ambient environment is signed
  * in as, and asserts that the adapter's own reader turns that binary's real
- * output into a settled answer. A machine without the binary skips with the
- * reason named, because a fabricated pass here would hide exactly the drift
- * this suite exists to catch — a vendor changing its stream shape.
+ * output into a settled answer. Every gate is a `ctx.skip` in the case body
+ * with the missing thing named — the toggle, the binary, or every seat — never
+ * a `describe.skipIf` that reports a bare skipped count, because a run that
+ * covered nothing must not read like a run that covered everything.
  *
  * Run with `SMITHERS_ADAPTER_SMOKE=1`; it is off by default because it spends
  * a real subscription turn.
@@ -19,6 +20,7 @@ import { Effect, Layer } from "effect"
 import { execFileSync } from "node:child_process"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import type { TestContext } from "vitest"
 import { describe, expect, it } from "vitest"
 import * as ClaudeCode from "../src/ClaudeCode.ts"
 import * as CliRun from "../src/CliRun.ts"
@@ -108,12 +110,26 @@ const seatsFor = async (binary: string): Promise<ReadonlyArray<string>> => {
 const seatIsSpent = (tag: string): boolean =>
   tag === "@smthrs-plugins/adapters/AuthFailed" || tag === "@smthrs-plugins/adapters/QuotaExhausted"
 
+/**
+ * Skips the case with the missing thing named, rather than vanishing.
+ *
+ * `describe.skipIf` reports a skipped case with no reason at all, so a run that
+ * covered nothing looks the same as a run that covered everything. Every gate
+ * in this suite is stated here instead, in the case body, where `ctx.skip`
+ * prints what was absent next to the skipped name.
+ */
+const requireEnvironment = (ctx: TestContext, binary: string, present: boolean): void => {
+  if (!enabled) ctx.skip("SMITHERS_ADAPTER_SMOKE is not 1: the live smoke spends a real subscription turn")
+  if (!present) ctx.skip(`the ${binary} binary is not on PATH`)
+}
+
 const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) => {
   const present = installed(binary)
-  describe.skipIf(!enabled || !present)(
+  describe(
     `${name} against the installed ${binary} binary`,
     () => {
-      it("passes its own preflight", async () => {
+      it("passes its own preflight", async (ctx) => {
+        requireEnvironment(ctx, binary, present)
         const outcome = await Effect.runPromise(
           Effect.result(
             Effect.flatMap(CliRun.probe, (probe) => spec.preflight!(probe, environment()))
@@ -124,6 +140,7 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
       }, 120_000)
 
       it("answers a one-word question through its own reader", async (ctx) => {
+        requireEnvironment(ctx, binary, present)
         // Seat failover, exactly as the pool does it: a seat whose login has
         // lapsed or whose quota is spent is stepped over, every other failure
         // is the adapter's and fails the test.
@@ -182,18 +199,14 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
       }, 300_000)
     }
   )
-
-  if (enabled && !present) {
-    // eslint-disable-next-line no-console
-    console.warn(`skipped: ${name} smoke needs the ${binary} binary, which is not installed here`)
-  }
 }
 
 smoke("Claude Code", ClaudeCode.spec, "claude", "Reply with exactly the word: ready")
 smoke("Codex", Codex.spec, "codex", "Reply with exactly the word: ready")
 
-describe.skipIf(!enabled)("Doctor against the installed binaries", () => {
-  it("reports each shipped adapter as ready or names why it is not", async () => {
+describe("Doctor against the installed binaries", () => {
+  it("reports each shipped adapter as ready or names why it is not", async (ctx) => {
+    if (!enabled) ctx.skip("SMITHERS_ADAPTER_SMOKE is not 1: the live smoke spends a real subscription turn")
     const report = await Effect.runPromise(
       Effect.flatMap(CliRun.probe, (probe) => Doctor.report(probe, environment())).pipe(
         Effect.provide(spawner)

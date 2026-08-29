@@ -7,8 +7,12 @@
  * every one of those observable without a subscription.
  */
 import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node"
-import { Effect, Layer, Stream } from "effect"
-import { describe, expect, it } from "vitest"
+import { ContainedSpawner, ProcessLedger } from "@smthrs/kernel"
+import { Effect, Fiber, Layer, Stream } from "effect"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { afterAll, describe, expect, it } from "vitest"
 import * as CliClassifier from "../src/CliClassifier.ts"
 import type { CliRecord } from "../src/CliOutput.ts"
 import * as CliRun from "../src/CliRun.ts"
@@ -259,4 +263,95 @@ describe("CliRun.probe", () => {
 
     expect(outcome._tag).toBe("Failure")
   })
+})
+
+/**
+ * Containment is the kernel's, and this is the case that says so.
+ *
+ * The runner spawns; it does not signal, detach, or reap. Process groups,
+ * `SIGTERM` escalation and the durable record of a live child belong to
+ * `@smthrs/kernel`'s `ContainedSpawner`, which a host composes over its
+ * platform spawner. The 0.x adapters owned that themselves
+ * (`run-command-process-group`, `run-command-parent-death`,
+ * `parent-death-watchdog-cwd`), so the requirement those suites expressed has
+ * to be visible from here: a cancelled `CliRun.run` must leave nothing behind,
+ * including the grandchild nobody holds a handle for.
+ *
+ * `sh` is the binary because a background job is the shortest way to make a
+ * process the runner never saw, and the tree ignores `SIGTERM` so the case can
+ * only pass on the escalation the containment layer supplies. Effect's own Node
+ * spawner already signals the group on scope close, but with `SIGTERM` alone
+ * and then an unbounded wait: swap `contained` for `spawner` below and the
+ * interrupt never returns, which is the hung host `ContainedSpawner` exists to
+ * prevent.
+ */
+const containmentDirectory = mkdtempSync(join(tmpdir(), "smithers-adapters-contained-"))
+
+afterAll(() => rmSync(containmentDirectory, { recursive: true, force: true }))
+
+/** Waits for a pid to disappear, or gives up after `budgetMs`. */
+const waitForExit = async (pid: number, budgetMs: number): Promise<boolean> => {
+  const deadline = Date.now() + budgetMs
+  for (;;) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return true
+    }
+    if (Date.now() > deadline) return false
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+/** Waits for the shell to report its own pid and its background job's. */
+const waitForPidFile = async (path: string): Promise<ReadonlyArray<number>> => {
+  for (let attempt = 0; attempt < 2_000; attempt += 1) {
+    try {
+      const parts = readFileSync(path, "utf8").trim().split(/\s+/).filter((part) => part !== "")
+      if (parts.length === 2) return parts.map(Number)
+    } catch {
+      // not written yet
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`the shell never wrote ${path}`)
+}
+
+/** A spec whose binary is a shell that forks a job the runner never sees. */
+const forking = (script: string): Spec.Spec => ({
+  ...scripted("0"),
+  buildCommand: () => ({ command: "sh", args: ["-c", script], cleanup: [], env: {} })
+})
+
+const contained = ContainedSpawner.layer({ graceMs: 400 }).pipe(
+  Layer.provide(spawner),
+  Layer.provide(ProcessLedger.layerMemory({ hostId: "adapters-contained", ownerPid: process.pid }))
+)
+
+describe("CliRun.run under the kernel's contained spawner", () => {
+  it("leaves no process group behind when the run is interrupted", async () => {
+    const pidFile = join(containmentDirectory, "group.pid")
+    const spec = forking(
+      `trap "" TERM; sleep 30 & echo "$$ $!" > ${pidFile}; while true; do sleep 0.2; done`
+    )
+
+    await run(
+      Effect.gen(function*() {
+        const fiber = yield* CliRun.run(spec, { prompt: "p", env: path() }).pipe(
+          Effect.provide(contained),
+          Effect.forkChild({ startImmediately: true })
+        )
+        const [shell, grandchild] = yield* Effect.promise(() => waitForPidFile(pidFile))
+
+        yield* Fiber.interrupt(fiber)
+
+        // The shell is the child the runner spawned; the background `sleep` is
+        // the process nothing ever held a handle for. Both ignore `SIGTERM`, so
+        // both are only reclaimed by the group `SIGKILL` the containment
+        // deadline schedules.
+        expect(yield* Effect.promise(() => waitForExit(shell!, 5_000))).toBe(true)
+        expect(yield* Effect.promise(() => waitForExit(grandchild!, 5_000))).toBe(true)
+      })
+    )
+  }, 30_000)
 })
