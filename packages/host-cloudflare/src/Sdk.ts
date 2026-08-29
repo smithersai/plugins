@@ -7,7 +7,7 @@
  * instead of a cast.
  *
  * Structural does not mean invented. Every member below is the shape
- * `@cloudflare/sandbox` actually publishes, and `test/SdkConformance.test.ts`
+ * `@cloudflare/sandbox` actually publishes, and `test/SdkConformance.types.ts`
  * fails the `check` gate when the vendor stops satisfying it. That type pin is
  * this host's substitute for a real-backend test: the SDK cannot be driven
  * from Node at all.
