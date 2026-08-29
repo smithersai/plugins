@@ -25,9 +25,7 @@ parent/
   smithers-plugins/
 ```
 
-Every `@smthrs/*` dependency and `effect` itself resolve through pnpm `link:`
-paths into `../smithers-v1`, so both repositories share one physical `effect`
-install and one set of `Context` tags. Install Smithers first.
+Install Smithers first, because this repository resolves against it.
 
 ```sh
 cd ../smithers-v1 && pnpm install
@@ -35,6 +33,37 @@ cd ../smithers-plugins && pnpm install
 pnpm check
 pnpm test
 ```
+
+### What the manifests say, and what development overrides
+
+Every manifest pins what a consumer installs: `@smthrs/*` at `1.0.0-rc.0` and
+`effect` at `4.0.0-rc.108`. Neither is on the registry yet, and both
+repositories must share one physical `effect` install or Effect's `Context`
+tags stop matching across the boundary.
+
+The `link:` paths that arrange that live in `pnpm-workspace.yaml` `overrides`,
+never in a manifest. Overrides apply to this workspace's own installs and are
+not part of a published package, so publishing needs no edit: the pinned
+versions are already the truth, and the day `@smthrs/*` reaches the registry
+the overrides are deleted rather than rewritten. `pnpm check` runs
+`scripts/check-manifests.mjs`, which fails on a `link:` or `file:` specifier in
+any manifest and on a version that drifts from those two pins.
+
+To gate this repository against a Smithers branch, point the overrides at that
+worktree:
+
+```sh
+sed -i '' 's|../smithers-v1|../smithers-v1-worktree|' pnpm-workspace.yaml
+```
+
+### Vendor SDKs
+
+Each host package declares its vendor SDK (`@cloudflare/sandbox`,
+`@vercel/sandbox`, `microsandbox`) as an optional peer dependency and carries a
+structural slice of it, so the package builds and type-checks with no vendor
+account. A conformance suite per host proves the slice still matches the real
+package, and the real-backend suites run against a live sandbox when the
+credential is present and skip with the missing variable named when it is not.
 
 ## Why these live outside the engine
 
