@@ -50,6 +50,9 @@ export * as StructuredOutput from "./StructuredOutput.ts"
 /** The subprocess runner every adapter shares. */
 export * as CliRun from "./CliRun.ts"
 
+/** The shipped adapters as executable flow bindings. */
+export * as AdapterFlows from "./AdapterFlows.ts"
+
 /** Adapter lookup. */
 export * as AdapterRuntime from "./AdapterRuntime.ts"
 
