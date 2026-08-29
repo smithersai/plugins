@@ -236,12 +236,80 @@ export const make = (schema: JsonSchema): Contract => ({
 })
 
 /**
+ * Strictens a schema for a vendor that consumes OpenAI's structured-output
+ * dialect.
+ *
+ * Codex reads its `--output-schema` file and Claude Code its `--json-schema`
+ * file in that dialect, which imposes three rules beyond JSON Schema:
+ *
+ * 1. Every object node carries `"type": "object"`.
+ * 2. Every object node sets `additionalProperties: false`.
+ * 3. Under that flag, every declared property is also listed in `required` —
+ *    strict mode has no optional properties, so a genuinely optional field is
+ *    modeled as nullable instead.
+ *
+ * Effect Schema and Zod both emit schemas that break all three for a loose
+ * object, and the vendor rejects the file rather than degrading, so a caller
+ * writing a schema file passes it through here first.
+ *
+ * This is deliberately not what {@link renderSchema} produces. The prompt
+ * teaches the shape the caller declared; telling the model that every optional
+ * field is required would make it invent values the caller did not ask for.
+ *
+ * The argument is not modified: a caller's declared schema stays the one the
+ * local validator reads.
+ *
+ * @category constructors
+ * @since 1.0.0
+ */
+export const vendorSchema = (schema: JsonSchema): JsonSchema => {
+  if (schema === true || schema === false) return schema
+  const record = asRecord(schema)
+  if (record === undefined) return schema
+
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (Array.isArray(value)) {
+      out[key] = value.map((item) =>
+        item === true || item === false || asRecord(item) !== undefined ? vendorSchema(item as JsonSchema) : item
+      )
+      continue
+    }
+    const nested = asRecord(value)
+    out[key] = nested === undefined ? value : vendorSchema(nested)
+  }
+
+  // Rule 1: a node that constrains its properties is an object, whether or not
+  // the emitter said so.
+  if (("additionalProperties" in out || "properties" in out) && !("type" in out)) out["type"] = "object"
+  if (out["type"] !== "object") return out
+  // Rule 2.
+  out["additionalProperties"] = false
+  // Rule 3.
+  const properties = asRecord(out["properties"])
+  if (properties !== undefined) out["required"] = Object.keys(properties)
+  return out
+}
+
+/**
  * Renders the exact schema supplied to the local validator.
  *
  * @category formatting
  * @since 0.1.0
  */
 export const renderSchema = (contract: Contract): string => JSON.stringify(contract.schema, null, 2)
+
+/**
+ * Renders the schema file a vendor reads, strictened by {@link vendorSchema}.
+ *
+ * This is what goes at `outputSchemaPath` — Codex's `--output-schema`, Claude
+ * Code's `--json-schema`. {@link renderSchema} is what goes in the prompt.
+ *
+ * @category formatting
+ * @since 1.0.0
+ */
+export const renderVendorSchema = (contract: Contract): string =>
+  JSON.stringify(vendorSchema(contract.schema), null, 2)
 
 /**
  * Extracts complete or rightmost balanced JSON and validates it locally.

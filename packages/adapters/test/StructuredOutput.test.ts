@@ -282,3 +282,98 @@ describe("StructuredOutput", () => {
     })
   })
 })
+
+// The schema a vendor is handed is not the schema declared. Codex
+// (`--output-schema`) and Claude Code (`--json-schema`) both consume OpenAI's
+// strict dialect, which imposes three rules beyond JSON Schema: every object
+// node carries `"type": "object"`, every object node sets
+// `additionalProperties: false`, and under that flag every declared property
+// must also be listed in `required`. Effect Schema and Zod both emit schemas
+// that break all three for a loose object, and the vendor rejects the file
+// rather than degrading, so the strictening happens here rather than in every
+// caller.
+describe("StructuredOutput.vendorSchema", () => {
+  it("names the type an object node omitted", () => {
+    expect(StructuredOutput.vendorSchema({
+      additionalProperties: true,
+      properties: { foo: { type: "string" } }
+    })).toMatchObject({ type: "object" })
+  })
+
+  it("closes an object a caller left open", () => {
+    expect(StructuredOutput.vendorSchema({ type: "object", properties: {} })).toMatchObject({
+      additionalProperties: false
+    })
+  })
+
+  it("requires every declared property, because strict mode does", () => {
+    expect(StructuredOutput.vendorSchema({
+      type: "object",
+      properties: { a: { type: "string" }, b: { type: "number" } },
+      required: ["a"]
+    })).toMatchObject({ required: ["a", "b"] })
+  })
+
+  it("reaches nested objects and array items", () => {
+    const strict = StructuredOutput.vendorSchema({
+      type: "object",
+      properties: {
+        nested: { type: "object", properties: { value: { type: "number" } } },
+        items: { type: "array", items: { additionalProperties: true, properties: { id: { type: "string" } } } }
+      }
+    }) as Record<string, any>
+
+    expect(strict["properties"].nested).toMatchObject({ additionalProperties: false, required: ["value"] })
+    expect(strict["properties"].items.items).toMatchObject({ type: "object", additionalProperties: false })
+  })
+
+  it("reaches every branch of a composed schema", () => {
+    const strict = StructuredOutput.vendorSchema({
+      anyOf: [
+        { type: "object", properties: { a: { type: "string" } } },
+        { type: "object", properties: { b: { type: "string" } } }
+      ]
+    }) as Record<string, any>
+
+    for (const branch of strict["anyOf"]) expect(branch).toMatchObject({ additionalProperties: false })
+  })
+
+  it("leaves the declared schema untouched", () => {
+    const declared = { type: "object", properties: { a: { type: "string" } } }
+    const before = JSON.stringify(declared)
+    StructuredOutput.vendorSchema(declared)
+    expect(JSON.stringify(declared)).toBe(before)
+  })
+
+  it("passes a boolean schema and a non-object node through", () => {
+    expect(StructuredOutput.vendorSchema(true)).toBe(true)
+    expect(StructuredOutput.vendorSchema({ type: "string" })).toEqual({ type: "string" })
+  })
+
+  it("renders the vendor's file from the contract", () => {
+    const contract = StructuredOutput.make({
+      type: "object",
+      properties: { a: { type: "string" } },
+      required: []
+    })
+    expect(JSON.parse(StructuredOutput.renderVendorSchema(contract))).toEqual({
+      type: "object",
+      properties: { a: { type: "string" } },
+      required: ["a"],
+      additionalProperties: false
+    })
+  })
+
+  // The prompt teaches the shape the caller declared. Telling the model every
+  // optional field is required would make it invent values for fields the
+  // caller marked optional, and the local validator would then accept them.
+  it("is not what the prompt renders", () => {
+    const contract = StructuredOutput.make({
+      type: "object",
+      properties: { a: { type: "string" }, b: { type: "string" } },
+      required: ["a"]
+    })
+    expect(StructuredOutput.renderSchema(contract)).not.toContain("\"b\"\n")
+    expect(JSON.parse(StructuredOutput.renderSchema(contract)).required).toEqual(["a"])
+  })
+})
