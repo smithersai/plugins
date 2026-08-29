@@ -25,6 +25,9 @@ export * as Session from "./Session.ts"
 /** Session to provider. */
 export * as CommandProvider from "./CommandProvider.ts"
 
+/** The conformance suite every host runs against its session. */
+export * as Conformance from "./Conformance.ts"
+
 /** Sandbox path containment. */
 export * as SandboxPath from "./SandboxPath.ts"
 

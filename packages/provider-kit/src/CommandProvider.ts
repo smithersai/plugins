@@ -15,6 +15,7 @@
  */
 import { RemoteChildProcessSpawner, type SandboxHealth } from "@smthrs/sandbox"
 import { Effect, Layer, Result, Stream } from "effect"
+import type { Signal } from "effect/unstable/process/ChildProcess"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import type { Scope } from "effect/Scope"
 import * as Egress from "./Egress.ts"
@@ -42,6 +43,17 @@ export interface Options {
   readonly egress?: unknown
   /** Where the CA bundle lands inside the sandbox. */
   readonly caCertPath?: string | undefined
+  /**
+   * Which optional session operations this host implements.
+   *
+   * The built provider declares `kill` and `ping` only when they are named
+   * here. `Provider` makes both optional so a caller can tell "cannot" from
+   * "tried and failed", and `@smthrs/sandbox` `ProviderConformance` fails a
+   * provider that declares a kill it then refuses. Declaring them
+   * unconditionally would make every transport that can only post a command
+   * line a conformance violation, so the default is neither.
+   */
+  readonly provides?: { readonly kill?: boolean | undefined; readonly ping?: boolean | undefined } | undefined
 }
 
 const providerError = (
@@ -139,15 +151,23 @@ export const make = (
           exitCode: Effect.mapError(started.exitCode, (error) => scrubbed(id, secrets, error))
         }
       }),
-    kill: (process, signal) =>
-      Effect.flatMap(opened(), (session) =>
-        session.kill === undefined
-          ? Effect.fail(providerError(id, `The ${id} provider cannot signal a running command`))
-          : session.kill(process, signal)),
-    ping: Effect.flatMap(opened(), (session) =>
-      session.ping === undefined
-        ? Effect.fail(providerError(id, `The ${id} provider has no liveness probe`))
-        : session.ping)
+    ...(options.provides?.kill === true
+      ? {
+        kill: (process: RemoteChildProcessSpawner.RemoteProcess, signal: Signal) =>
+          Effect.flatMap(opened(), (session) =>
+            session.kill === undefined
+              ? Effect.fail(providerError(id, `The ${id} provider cannot signal a running command`))
+              : session.kill(process, signal))
+      }
+      : {}),
+    ...(options.provides?.ping === true
+      ? {
+        ping: Effect.flatMap(opened(), (session) =>
+          session.ping === undefined
+            ? Effect.fail(providerError(id, `The ${id} provider has no liveness probe`))
+            : session.ping)
+      }
+      : {})
   })
 }
 
@@ -160,6 +180,8 @@ export const make = (
 export const pingProvider = (
   provider: RemoteChildProcessSpawner.Provider
 ): SandboxHealth.PingProvider => ({
+  // A provider that declares no probe is reported healthy rather than failed:
+  // "this host cannot be probed" is not "this host is down".
   ping: provider.ping ?? Effect.void
 })
 

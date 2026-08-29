@@ -2,9 +2,15 @@
  * The slice of the Microsandbox SDK this host uses.
  *
  * Declared structurally rather than imported, for two reasons. The SDK is an
- * optional peer — a checkout that never runs a microVM should still build —
- * and a structural declaration is what makes the mock in this package's tests
- * a legitimate stand-in rather than a cast.
+ * optional peer, so a checkout that never runs a microVM still builds, and a
+ * structural declaration is what makes the double in this package's tests a
+ * legitimate stand-in rather than a cast.
+ *
+ * Structural does not mean invented. Every member below is the shape
+ * `microsandbox` actually publishes, and `test/SdkConformance.test.ts` fails
+ * the `check` gate when the vendor stops satisfying it. Two shapes are easy to
+ * get wrong and are called out where they are declared: a command's output
+ * arrives through one `collect()`, and the strings it answers are synchronous.
  *
  * @since 1.0.0
  */
@@ -16,21 +22,50 @@
  * @since 1.0.0
  */
 export interface GuestFs {
-  readonly write: (path: string, content: string) => Promise<void>
-  readonly readToString: (path: string) => Promise<string>
-  readonly mkdir: (path: string) => Promise<void>
+  write(path: string, data: Uint8Array | string): Promise<void>
+  readToString(path: string): Promise<string>
+  mkdir(path: string): Promise<void>
+}
+
+/**
+ * A finished command.
+ *
+ * `stdout` and `stderr` are synchronous readers over an already-drained
+ * buffer, not promises.
+ *
+ * @category models
+ * @since 1.0.0
+ */
+export interface ExecOutput {
+  readonly code: number
+  stdout(): string
+  stderr(): string
 }
 
 /**
  * One streamed command execution.
  *
+ * The handle streams events; `collect` drains standard output and standard
+ * error and waits for the exit. There is no separate per-stream reader, which
+ * is why this host collects once and answers all three parts from the result.
+ *
  * @category models
  * @since 1.0.0
  */
 export interface ExecHandle {
-  readonly output: () => Promise<string>
-  readonly error: () => Promise<string>
-  readonly exitCode: () => Promise<number>
+  collect(): Promise<ExecOutput>
+}
+
+/**
+ * The fluent command builder the SDK hands the configure callback.
+ *
+ * @category models
+ * @since 1.0.0
+ */
+export interface ExecBuilder {
+  args(args: Array<string>): this
+  cwd(cwd: string): this
+  envs(vars: Record<string, string>): this
 }
 
 /**
@@ -40,36 +75,39 @@ export interface ExecHandle {
  * @since 1.0.0
  */
 export interface Sandbox {
-  readonly fs: () => GuestFs
-  readonly execStreamWith: (
-    shell: string,
-    configure: (builder: ExecBuilder) => ExecBuilder
-  ) => Promise<ExecHandle>
-  readonly stop?: (() => Promise<void>) | undefined
-}
-
-/**
- * The fluent command builder the SDK exposes.
- *
- * @category models
- * @since 1.0.0
- */
-export interface ExecBuilder {
-  readonly args: (args: ReadonlyArray<string>) => ExecBuilder
-  readonly cwd: (cwd: string) => ExecBuilder
-  readonly envs: (env: Readonly<Record<string, string>>) => ExecBuilder
+  readonly name: string
+  fs(): GuestFs
+  execStreamWith(cmd: string, configure: (builder: ExecBuilder) => ExecBuilder): Promise<ExecHandle>
+  stop(): Promise<void>
 }
 
 /**
  * The sandbox builder.
  *
+ * Every setter this host may call is declared, because a resource or lifetime
+ * option that is dropped here is a microVM that boots with the wrong shape.
+ *
  * @category models
  * @since 1.0.0
  */
 export interface SandboxBuilder {
-  readonly image: (image: string) => SandboxBuilder
-  readonly ephemeral: (ephemeral: boolean) => SandboxBuilder
-  readonly create: () => Promise<Sandbox>
+  image(image: string): this
+  fromSnapshot(pathOrName: string): this
+  cpus(n: number): this
+  maxCpus(n: number): this
+  memory(mib: number): this
+  maxMemory(mib: number): this
+  shell(shell: string): this
+  security(profile: "default" | "restricted"): this
+  pullPolicy(policy: string): this
+  labels(labels: Record<string, string>): this
+  scripts(scripts: Record<string, string>): this
+  maxDuration(secs: number): this
+  idleTimeout(secs: number): this
+  ephemeral(enabled: boolean): this
+  detached(enabled: boolean): this
+  disableNetwork(): this
+  create(): Promise<Sandbox>
 }
 
 /**
@@ -79,5 +117,5 @@ export interface SandboxBuilder {
  * @since 1.0.0
  */
 export interface Sdk {
-  readonly Sandbox: { readonly builder: (name: string) => SandboxBuilder }
+  readonly Sandbox: { builder(name: string): SandboxBuilder }
 }

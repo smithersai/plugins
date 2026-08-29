@@ -2,7 +2,7 @@
 
 What every cloud sandbox host would otherwise write twice.
 
-A host package supplies a `Session` over its vendor SDK — open a sandbox, run a
+A host package supplies a `Session` over its vendor SDK: open a sandbox, run a
 command in it, read the files it wrote. This package turns that into a
 `@smthrs/sandbox` `RemoteChildProcessSpawner.Provider` with the egress policy
 delivered to the command, secrets scrubbed out of diagnostics, and a liveness
@@ -33,7 +33,8 @@ refused there; an allowed host bypasses or is passed through.
 `test/Egress.test.ts` proves this against real sockets, not a mock: it starts an
 origin server and a proxy, runs a command through the kit with the environment
 the kit produced, and asserts the denied host is blocked at the proxy while the
-allowed host is served — and that the harness's own environment is untouched.
+allowed host is served. It also asserts that the harness's own environment is
+untouched.
 
 ## Containment
 
