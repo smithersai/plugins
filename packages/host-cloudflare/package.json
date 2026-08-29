@@ -1,9 +1,9 @@
 {
-  "name": "@smthrs-plugins/adapters",
+  "name": "@smthrs-plugins/host-cloudflare",
   "type": "module",
   "version": "1.0.0-rc.0",
   "license": "MIT",
-  "description": "Claude Code, Codex, Kimi, and Antigravity CLI adapters for Smithers",
+  "description": "Cloudflare Sandbox remote spawner and health provider for Smithers",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -26,12 +26,9 @@
   },
   "dependencies": {
     "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/harness": "link:../../../smithers-v1/packages/harness",
     "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
-    "@smthrs/keys": "link:../../../smithers-v1/packages/keys",
-    "@smthrs/model": "link:../../../smithers-v1/packages/model",
-    "@smthrs/registry": "link:../../../smithers-v1/packages/registry",
-    "@smthrs/core": "link:../../../smithers-v1/packages/core"
+    "@smthrs/sandbox": "link:../../../smithers-v1/packages/sandbox",
+    "@smthrs-plugins/provider-kit": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.5",

@@ -1,26 +1,47 @@
 # Smithers Plugins
 
-Smithers Plugins packages vendor adapters and projections for the Smithers
-ecosystem. It currently contains `@flows/adapters`, which provides declarative
-Claude Code and Codex CLI adapters plus Skills and MCP projections.
+Vendor agent adapters, provider seats, and deployment hosts for Smithers. Every
+package here builds against `@smthrs/*` `1.0.0-rc.0` and Effect
+`4.0.0-rc.108`; nothing here is part of the engine's published set.
+
+| Package | What it is |
+| --- | --- |
+| `@smthrs-plugins/adapters` | Claude Code, Codex, Kimi, and Antigravity CLI adapters, their capability registry, and a doctor. |
+| `@smthrs-plugins/accounts` | The on-disk provider account registry. |
+| `@smthrs-plugins/usage` | Usage reports, durable quota state, and pool ordering. |
+| `@smthrs-plugins/seat-resolver` | A `@smthrs/agent` `SeatResolver` over the registry, with the fallback seat pool. |
+| `@smthrs-plugins/provider-kit` | The command sandbox provider kit, egress policy, and bundling. |
+| `@smthrs-plugins/host-cloudflare` | Cloudflare Sandbox remote spawner and health provider. |
+| `@smthrs-plugins/host-vercel` | Vercel Sandbox remote spawner and health provider. |
+| `@smthrs-plugins/host-microsandbox` | Microsandbox remote spawner and health provider. |
 
 ## Development
 
-Keep this repository beside `smithers-agent` and `smithers-flows`:
+Keep this repository beside the Smithers checkout it links against:
 
 ```text
 parent/
-  smithers-agent/
-  smithers-flows/
+  smithers-v1/
   smithers-plugins/
 ```
 
-`@flows/adapters` links its agent-layer dependencies from `smithers-agent` and
-its durable flows-layer dependencies from `smithers-flows`. The links use
-relative symlink indirection so the `packages/*` workspace glob does not absorb
-either sibling repository.
+Every `@smthrs/*` dependency and `effect` itself resolve through pnpm `link:`
+paths into `../smithers-v1`, so both repositories share one physical `effect`
+install and one set of `Context` tags. Install Smithers first.
 
 ```sh
-npm install
-npm run check
+cd ../smithers-v1 && pnpm install
+cd ../smithers-plugins && pnpm install
+pnpm check
+pnpm test
 ```
+
+## Why these live outside the engine
+
+Smithers 1.0 resolves seats from environment keys and ships one built-in agent.
+Multi-account rotation, vendor CLI subprocesses, and cloud sandbox hosts are
+local operations concerns rather than engine features, so they bind through
+public seams — `@smthrs/agent` `SeatResolver`, `@smthrs/sandbox`
+`RemoteChildProcessSpawner.Provider` and `SandboxHealth.PingProvider`,
+`@smthrs/harness` `Cell`, `EngineLike`, and `FlowBinding` — and never through
+engine internals or store tables.

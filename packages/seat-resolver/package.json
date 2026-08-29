@@ -1,9 +1,9 @@
 {
-  "name": "@smthrs-plugins/adapters",
+  "name": "@smthrs-plugins/seat-resolver",
   "type": "module",
   "version": "1.0.0-rc.0",
   "license": "MIT",
-  "description": "Claude Code, Codex, Kimi, and Antigravity CLI adapters for Smithers",
+  "description": "A Smithers SeatResolver over the account registry with a fallback seat pool",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -26,12 +26,11 @@
   },
   "dependencies": {
     "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/harness": "link:../../../smithers-v1/packages/harness",
+    "@smthrs/agent": "link:../../../smithers-v1/packages/agent",
+    "@smthrs-plugins/accounts": "workspace:*",
     "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
-    "@smthrs/keys": "link:../../../smithers-v1/packages/keys",
     "@smthrs/model": "link:../../../smithers-v1/packages/model",
-    "@smthrs/registry": "link:../../../smithers-v1/packages/registry",
-    "@smthrs/core": "link:../../../smithers-v1/packages/core"
+    "@smthrs-plugins/usage": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.5",

@@ -1,9 +1,9 @@
 {
-  "name": "@smthrs-plugins/adapters",
+  "name": "@smthrs-plugins/usage",
   "type": "module",
   "version": "1.0.0-rc.0",
   "license": "MIT",
-  "description": "Claude Code, Codex, Kimi, and Antigravity CLI adapters for Smithers",
+  "description": "Provider usage and quota state for Smithers accounts",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -26,16 +26,13 @@
   },
   "dependencies": {
     "effect": "link:../../../smithers-v1/node_modules/effect",
-    "@smthrs/harness": "link:../../../smithers-v1/packages/harness",
     "@smthrs/kernel": "link:../../../smithers-v1/packages/kernel",
-    "@smthrs/keys": "link:../../../smithers-v1/packages/keys",
-    "@smthrs/model": "link:../../../smithers-v1/packages/model",
-    "@smthrs/registry": "link:../../../smithers-v1/packages/registry",
-    "@smthrs/core": "link:../../../smithers-v1/packages/core"
+    "@smthrs-plugins/accounts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "@effect/platform-node": "link:../../../smithers-v1/node_modules/@effect/platform-node"
   }
 }
