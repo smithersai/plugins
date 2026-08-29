@@ -14,8 +14,17 @@ import * as VercelSandbox from "../src/VercelSandbox.ts"
 /** Fails to compile when the vendor module stops implementing the slice. */
 type Conforms<T extends Sdk.Sdk> = T
 
-/** @internal the assertion is the compile, not the value */
-export type VendorConforms = Conforms<typeof import("@vercel/sandbox")>
+/**
+ * @internal the assertion is the compile, not the value. Both halves of the
+ * declared peer range are compiled: `@vercel/sandbox` is the 2.x devDependency
+ * the runtime cases below drive, and `@vercel/sandbox-3` is an install alias
+ * for the 3.x major, so neither half of `^2.0.0 || ^3.0.0` is a promise nobody
+ * checks.
+ */
+export type Vendor2Conforms = Conforms<typeof import("@vercel/sandbox")>
+
+/** @internal see above */
+export type Vendor3Conforms = Conforms<typeof import("@vercel/sandbox-3")>
 
 describe("@vercel/sandbox conformance", () => {
   it("exposes the entry point the host calls", async () => {
