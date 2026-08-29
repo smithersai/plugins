@@ -60,6 +60,18 @@ kimi: ready (poolable)
 antigravity: unavailable — antigravity --version could not run on the selected host
 ```
 
+## Two schemas, not one
+
+A declared output schema is rendered twice, deliberately.
+`StructuredOutput.renderSchema` produces what the prompt teaches — the shape the
+caller declared. `renderVendorSchema` produces what goes in the file a binary
+reads (Codex `--output-schema`, Claude Code `--json-schema`), strictened to
+OpenAI's dialect: every object node typed, closed with
+`additionalProperties: false`, and every declared property listed in `required`,
+because strict mode has no optional properties. Handing the model the strict
+copy would make it invent values for fields the caller marked optional; handing
+the binary the declared copy gets the file rejected.
+
 ## Seat isolation
 
 Nothing here reads `process.env`. A caller passes the child's whole environment,
