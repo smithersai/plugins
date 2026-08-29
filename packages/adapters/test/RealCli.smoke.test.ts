@@ -12,6 +12,7 @@
  * a real subscription turn.
  */
 import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node"
+import { Accounts } from "@smthrs-plugins/accounts"
 import { Effect, Layer } from "effect"
 import { execFileSync } from "node:child_process"
 import { homedir } from "node:os"
@@ -46,13 +47,50 @@ const environment = (): Record<string, string> =>
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
   )
 
-// The seat: the adapter runs on the account this machine is already signed in
-// as, named explicitly rather than inherited, because the adapters isolate
-// their configuration directory by default.
-const configDirFor = (binary: string): string =>
+const registryLayer = Accounts.layer.pipe(
+  Layer.provide(Layer.mergeAll(
+    NodeFileSystem.layer,
+    NodePath.layer,
+    Accounts.layerConfigFromEnv(process.env, homedir()).pipe(Layer.provide(NodePath.layer))
+  ))
+)
+
+const ambientConfigDir = (binary: string): string =>
   binary === "claude"
     ? process.env["CLAUDE_CONFIG_DIR"] ?? join(homedir(), ".claude")
     : process.env["CODEX_HOME"] ?? join(homedir(), ".codex")
+
+/**
+ * The seats this smoke may run on, best first.
+ *
+ * Registered accounts come first, because that is where a machine that pools
+ * subscriptions keeps its headless logins: the ambient `~/.claude` on a
+ * developer box is frequently signed out while `~/.smithers/accounts/claude-5`
+ * is not. Resolving through the real registry means the smoke exercises the
+ * seats the product would have picked, not ones the test invented. The ambient
+ * directory is the last candidate, for a machine with no registry at all.
+ */
+const seatsFor = async (binary: string): Promise<ReadonlyArray<string>> => {
+  const provider = binary === "claude" ? "claude-code" : "codex"
+  const registered = await Effect.runPromise(
+    Effect.orElseSucceed(
+      Effect.map(
+        Effect.flatMap(Accounts.Accounts, (accounts) => accounts.list),
+        (rows) =>
+          rows.flatMap((row) =>
+            row.provider === provider && typeof row.configDir === "string" ? [row.configDir] : []
+          )
+      ),
+      (): ReadonlyArray<string> => []
+    ).pipe(Effect.provide(registryLayer))
+  )
+  const ambient = ambientConfigDir(binary)
+  return registered.includes(ambient) ? registered : [...registered, ambient]
+}
+
+/** Failures that mean "this seat is spent", so the pool moves to the next one. */
+const seatIsSpent = (tag: string): boolean =>
+  tag === "@smthrs-plugins/adapters/AuthFailed" || tag === "@smthrs-plugins/adapters/QuotaExhausted"
 
 const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) => {
   const present = installed(binary)
@@ -70,53 +108,62 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
       }, 120_000)
 
       it("answers a one-word question through its own reader", async () => {
-        const bounded = await Effect.runPromise(
-          Effect.timeoutOption(
-            Effect.result(
-              CliRun.run(spec, {
-                prompt,
-                env: environment(),
-                cwd: process.cwd(),
-                configDir: configDirFor(binary)
-              })
-            ),
-            turnBudgetMillis
-          ).pipe(Effect.provide(spawner))
-        )
+        // Seat failover, exactly as the pool does it: a seat whose login has
+        // lapsed or whose quota is spent is stepped over, every other failure
+        // is the adapter's and fails the test.
+        const seats = await seatsFor(binary)
+        const refusals: Array<string> = []
 
-        if (bounded._tag === "None") {
-          // The binary is installed and started; it did not finish a turn
-          // inside the smoke's budget. Reported as a named skip because that
-          // is an environment fact about this machine, not an adapter defect.
-          // eslint-disable-next-line no-console
-          console.warn(
-            `skipped: ${binary} did not finish a turn within ${turnBudgetMillis}ms on this machine`
+        for (const seat of seats) {
+          const bounded = await Effect.runPromise(
+            Effect.timeoutOption(
+              Effect.result(
+                CliRun.run(spec, {
+                  prompt,
+                  env: environment(),
+                  cwd: process.cwd(),
+                  configDir: seat
+                })
+              ),
+              turnBudgetMillis
+            ).pipe(Effect.provide(spawner))
           )
+
+          if (bounded._tag === "None") {
+            // The binary started and did not finish inside the budget. An
+            // environment fact about this machine, not an adapter defect, so
+            // the next seat gets a turn.
+            refusals.push(`${seat}: no turn within ${turnBudgetMillis}ms`)
+            continue
+          }
+          const outcome = bounded.value
+
+          if (outcome._tag === "Failure") {
+            const tag = outcome.failure._tag
+            if (seatIsSpent(tag)) {
+              refusals.push(`${seat}: ${tag} (${outcome.failure.message.slice(0, 100)})`)
+              continue
+            }
+            throw new Error(`${name} smoke failed with ${tag}: ${outcome.failure.message.slice(0, 400)}`)
+          }
+
+          // eslint-disable-next-line no-console
+          console.log(
+            `${binary} answered on the seat at ${seat}: ${JSON.stringify(outcome.success.answer.trim().slice(0, 80))}`
+          )
+          expect(outcome.success.exitCode).toBe(0)
+          expect(outcome.success.answer.trim().length).toBeGreaterThan(0)
+          expect(outcome.success.records.length).toBeGreaterThan(0)
           return
         }
-        const outcome = bounded.value
 
-        if (outcome._tag === "Failure") {
-          // A machine whose vendor login is interactive-only has no headless
-          // seat for this binary. That is an environment fact, and the adapter
-          // reporting it as AuthFailed from the vendor's own words is the
-          // behaviour under test — so it is a named skip, never a silent pass
-          // and never a fabricated answer. Every other failure is real.
-          const tag = outcome.failure._tag
-          if (tag === "@smthrs-plugins/adapters/AuthFailed") {
-            // eslint-disable-next-line no-console
-            console.warn(
-              `skipped: ${binary} has no headless seat on this machine — the adapter classified the vendor's own refusal as AuthFailed (${outcome.failure.message.slice(0, 120)})`
-            )
-            expect(outcome.failure.message.length).toBeGreaterThan(0)
-            return
-          }
-          throw new Error(`${name} smoke failed with ${tag}: ${outcome.failure.message.slice(0, 400)}`)
-        }
-
-        expect(outcome.success.exitCode).toBe(0)
-        expect(outcome.success.answer.trim().length).toBeGreaterThan(0)
-        expect(outcome.success.records.length).toBeGreaterThan(0)
+        // Every seat refused. That is a fact about this machine's logins, and
+        // the adapter naming each refusal from the vendor's own words is the
+        // behaviour under test — so it is a named skip, never a silent pass and
+        // never a fabricated answer.
+        // eslint-disable-next-line no-console
+        console.warn(`skipped: no seat answered for ${binary}\n  ${refusals.join("\n  ")}`)
+        expect(refusals.length).toBe(seats.length)
       }, 300_000)
     }
   )

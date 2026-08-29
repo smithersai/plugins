@@ -93,9 +93,13 @@ const commandFor = (spec: Spec.Spec, options: Options): ChildProcess.StandardCom
   return ChildProcess.make(rendered.command, [...rendered.args], {
     env: environmentFor(rendered, options),
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-    ...(rendered.stdin === undefined
-      ? {}
-      : { stdin: Stream.make(new TextEncoder().encode(rendered.stdin)) })
+    // A spec that sends nothing gets a closed standard input, never the
+    // default open pipe. Codex reads stdin even when the prompt is its
+    // positional argument and waits on it before starting the turn, so a child
+    // holding a pipe nobody writes to never settles.
+    stdin: rendered.stdin === undefined
+      ? "ignore"
+      : Stream.make(new TextEncoder().encode(rendered.stdin))
   })
 }
 

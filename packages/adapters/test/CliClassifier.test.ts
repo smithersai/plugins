@@ -35,6 +35,28 @@ describe("CliClassifier", () => {
     expect(result).toMatchObject({ _tag: "@smthrs-plugins/adapters/SessionLost", discardResumeSession: true })
   })
 
+  // Measured against the real binary on 2026-08-29: a Claude Code seat whose
+  // login had lapsed printed "Failed to authenticate: OAuth session expired and
+  // could not be refreshed". Reading that as a lost session is the expensive
+  // mistake — the recovery for a lost session is to drop the resume token and
+  // start a fresh turn on the same seat, which cannot restore a lapsed login,
+  // so a pool would keep feeding work to a dead account instead of failing over
+  // to a live one. A message that names authentication is about the seat.
+  it("reports a lapsed vendor login as an auth failure, not a lost session", () => {
+    const result = classify({
+      exitCode: 1,
+      stderr: "Failed to authenticate: OAuth session expired and could not be refreshed"
+    })
+    expect(result?._tag).toBe("@smthrs-plugins/adapters/AuthFailed")
+  })
+
+  it("still poisons the resume token when only the session is gone", () => {
+    expect(classify({ exitCode: 1, stderr: "session expired: resume 8f2 no longer exists" })).toMatchObject({
+      _tag: "@smthrs-plugins/adapters/SessionLost",
+      discardResumeSession: true
+    })
+  })
+
   it("uses semantic precedence over mixed diagnostics", () => {
     const quota = classify({ exitCode: 1, stderr: "update available\ninvalid api key\nquota exceeded" })
     expect(quota?._tag).toBe("@smthrs-plugins/adapters/QuotaExhausted")

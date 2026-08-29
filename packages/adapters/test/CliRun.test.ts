@@ -165,6 +165,49 @@ describe("CliRun.run", () => {
     )
   })
 
+  // Codex 0.150.1 reads standard input even when the prompt is the positional
+  // argument ("If stdin is piped and a prompt is also provided, stdin is
+  // appended as a `<stdin>` block"), and it announces "Reading additional input
+  // from stdin..." before it will start the turn. A child handed an open pipe
+  // nobody writes to therefore never settles, which is exactly what the live
+  // smoke hit: every codex turn timed out at three minutes. A spec that asks
+  // for no stdin must get a closed one.
+  it("closes the child's standard input when the spec sends none", async () => {
+    const outcome = await run(
+      CliRun.run(
+        scripted(
+          `let seen="";process.stdin.on("data",(c)=>{seen+=c});` +
+            `process.stdin.on("end",()=>{console.log(JSON.stringify({type:"result",text:"eof:"+seen.length}));process.exit(0)})`
+        ),
+        { prompt: "p", env: path() }
+      ).pipe(Effect.provide(spawner))
+    )
+
+    expect(outcome.answer).toBe("eof:0")
+  }, 15_000)
+
+  it("still pipes the standard input a spec does ask for", async () => {
+    const reader: Spec.Spec = {
+      ...scripted("0"),
+      buildCommand: () => ({
+        command: "node",
+        args: [
+          "-e",
+          `let seen="";process.stdin.on("data",(c)=>{seen+=c});` +
+            `process.stdin.on("end",()=>{console.log(JSON.stringify({type:"result",text:seen}));process.exit(0)})`
+        ],
+        cleanup: [],
+        env: {},
+        stdin: "from the spec"
+      })
+    }
+    const outcome = await run(
+      CliRun.run(reader, { prompt: "p", env: path() }).pipe(Effect.provide(spawner))
+    )
+
+    expect(outcome.answer).toBe("from the spec")
+  }, 15_000)
+
   it("falls back to the stdout tail when the vendor emitted no settled record", async () => {
     const outcome = await run(
       CliRun.run(scripted(`console.log("bare prose");process.exit(0)`), { prompt: "p", env: path() }).pipe(

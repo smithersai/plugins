@@ -64,6 +64,9 @@ importers:
       '@effect/platform-node':
         specifier: link:../../../smithers-v1/node_modules/@effect/platform-node
         version: link:../../../smithers-v1/node_modules/@effect/platform-node
+      '@smthrs-plugins/accounts':
+        specifier: workspace:*
+        version: link:../accounts
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5

@@ -88,10 +88,15 @@ export const defaultPatterns: Patterns = {
   auth: [
     /\b401\b[\s\S]{0,200}?\b(?:unauthorized|authentication|api[_\s-]?key)\b/i,
     /\b(?:unauthorized|authentication failed|auth failed)\b/i,
+    /\bfailed to (?:authenticate|log ?in|sign ?in)\b/i,
     /\binvalid[_\s-]?(?:api[_\s-]?)?key\b/i,
     /\bapi\s*key\b[\s\S]{0,100}?\b(?:invalid|expired|revoked|missing)\b/i,
     /\b(?:login|log in|sign in)\s+required\b/i,
-    /\b(?:access|auth(?:entication)?|oauth|bearer)\s+token\b[\s\S]{0,100}?\b(?:expired|invalid|revoked)\b/i
+    /\b(?:access|auth(?:entication)?|oauth|bearer)\s+token\b[\s\S]{0,100}?\b(?:expired|invalid|revoked)\b/i,
+    // Claude Code prints this when its stored OAuth grant has lapsed. The word
+    // "session" here is the login, not a resume id.
+    /\boauth\s+(?:session|credential|grant|login)s?\b[\s\S]{0,60}?\b(?:expired|invalid|revoked)\b/i,
+    /\bnot logged in\b/i
   ],
   config: [
     /\b(?:unknown|unrecognized|unsupported|invalid)\s+(?:option|flag|argument|parameter)\b/i,
@@ -317,11 +322,18 @@ export function classify(
     return new AdapterError.QuotaExhausted({ message: truncateTailKeep(text, 4096), ...details })
   }
   if (input.exitCode === 0 && !semanticFailure) return undefined
-  if (matches(text, selectedPatterns.sessionLost)) {
-    return new AdapterError.SessionLost({ message: truncateTailKeep(text, 4096), discardResumeSession: true })
-  }
+  // Authentication outranks session loss. The two recoveries point in opposite
+  // directions: a lost session is repaired by dropping the resume token and
+  // retrying on the same seat, while a lapsed login is only repaired by moving
+  // to another seat. Vendors describe a lapsed login in words that also name a
+  // "session" ("OAuth session expired"), so reading session first would keep a
+  // pool retrying a dead account. A message that names authentication is about
+  // the seat; the session patterns below only fire on a resume id.
   if (matches(text, selectedPatterns.auth)) {
     return new AdapterError.AuthFailed({ message: truncateTailKeep(text, 4096) })
+  }
+  if (matches(text, selectedPatterns.sessionLost)) {
+    return new AdapterError.SessionLost({ message: truncateTailKeep(text, 4096), discardResumeSession: true })
   }
   if (matches(text, selectedPatterns.config)) {
     return new AdapterError.ConfigInvalid({ message: truncateTailKeep(text, 4096) })
