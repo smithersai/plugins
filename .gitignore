@@ -48,6 +48,11 @@ collect.sh
 reference/*
 !reference/electrobun-shell/
 
+# Vendor CLI state an adapter run writes beside its working directory: a
+# Claude Code configuration directory, Codex's last-message file, session
+# transcripts. Machine-identifying and never committed.
+.flows/
+
 # Smithers run store (ephemeral — never commit)
 smithers.db
 smithers.db-shm
