@@ -29,6 +29,7 @@ import { Context, Effect, Schema } from "effect"
 import * as AdapterError from "./AdapterError.ts"
 import * as AdapterRuntime from "./AdapterRuntime.ts"
 import * as CliRun from "./CliRun.ts"
+import * as Env from "./Env.ts"
 import type * as Spec from "./Spec.ts"
 
 /**
@@ -110,6 +111,29 @@ export const flow = (spec: Spec.Spec): Flow.Flow<typeof Input, typeof Output, ne
   })
 
 /**
+ * The environment a dispatched adapter runs under.
+ *
+ * {@link module:CliRun} reads no ambient environment on purpose: its caller
+ * owns the child's whole environment, which is what makes a seat's isolation
+ * variable unspoofable. In a flow dispatch this module is that caller, and a
+ * cell's input carries no environment at all, so the binding has to supply
+ * one. Supplying nothing is not the safe choice it looks like: a child with no
+ * `PATH` searches the system default (`/usr/bin:/bin`), where no vendor CLI is
+ * installed, so every dispatch failed to spawn on a machine where the binary
+ * was plainly on the host's `PATH`.
+ *
+ * {@link module:Env.merge} is that supply, and it is deliberately narrow: only
+ * `PATH`, `HOME`, `LANG`, and `TERM` cross from the host, recursion markers are
+ * blanked, and provider API keys are blanked because no credential layer is
+ * supplied here. The spec's own environment is applied over this by the
+ * runner, so an account's configuration directory still wins.
+ *
+ * @category constructors
+ * @since 1.0.0
+ */
+export const hostEnvironment = (): Readonly<Record<string, string>> => Env.merge({ processEnv: process.env })
+
+/**
  * Runs one adapter for a decoded call.
  *
  * @category handlers
@@ -117,11 +141,13 @@ export const flow = (spec: Spec.Spec): Flow.Flow<typeof Input, typeof Output, ne
  */
 export const run = (
   spec: Spec.Spec,
-  input: typeof Input.Type
+  input: typeof Input.Type,
+  environment: Readonly<Record<string, string>> = hostEnvironment()
 ): Effect.Effect<typeof Output.Type, AdapterError.AdapterError, ChildProcessSpawner> =>
   Effect.map(
     CliRun.run(spec, {
       prompt: input.prompt,
+      env: environment,
       ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
       ...(input.configDir === undefined ? {} : { configDir: input.configDir }),
       ...(input.resume === undefined ? {} : { resume: { sessionId: input.resume } })
