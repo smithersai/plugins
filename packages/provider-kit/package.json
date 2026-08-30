@@ -22,6 +22,7 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "lint": "node ../../scripts/check-source.mjs",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {

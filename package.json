@@ -19,6 +19,7 @@
     "check:manifests": "node scripts/check-manifests.mjs",
     "check": "node scripts/check-manifests.mjs && pnpm -r --if-present run check",
     "test": "pnpm -r --if-present run test",
+    "lint": "pnpm -r --if-present run lint",
     "coverage": "pnpm -r --if-present run coverage"
   },
   "devDependencies": {

@@ -32,7 +32,14 @@ cd ../smithers-v1 && pnpm install
 cd ../smithers-plugins && pnpm install
 pnpm check
 pnpm test
+pnpm lint
 ```
+
+`check` compiles every package and rejects a manifest that drifts from the two
+pins. `test` runs each package's suites; the credential-gated ones skip with the
+missing variable named. `lint` is `scripts/check-source.mjs`, which needs no
+dependency and fails on an export with no JSDoc block or a `describe.only` left
+in a suite.
 
 ### What the manifests say, and what development overrides
 
