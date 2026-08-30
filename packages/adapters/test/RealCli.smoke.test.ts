@@ -9,6 +9,11 @@
  * a `describe.skipIf` that reports a bare skipped count, because a run that
  * covered nothing must not read like a run that covered everything.
  *
+ * A run where every seat refuses skips; a run where a seat starts and never
+ * finishes a turn FAILS, because a hang is the adapter's symptom rather than a
+ * fact about this machine's logins. That policy is {@link module:SmokeGate},
+ * which `SmokeGate.test.ts` pins against real processes without a credential.
+ *
  * Run with `SMITHERS_ADAPTER_SMOKE=1`; it is off by default because it spends
  * a real subscription turn.
  */
@@ -18,7 +23,8 @@ import { Pool } from "@smthrs-plugins/seat-resolver"
 import { QuotaState } from "@smthrs-plugins/usage"
 import { Effect, Layer } from "effect"
 import { execFileSync } from "node:child_process"
-import { homedir } from "node:os"
+import { mkdtempSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TestContext } from "vitest"
 import { describe, expect, it } from "vitest"
@@ -27,6 +33,7 @@ import * as CliRun from "../src/CliRun.ts"
 import * as Codex from "../src/Codex.ts"
 import * as Doctor from "../src/Doctor.ts"
 import type * as Spec from "../src/Spec.ts"
+import * as SmokeGate from "./SmokeGate.ts"
 
 const enabled = process.env["SMITHERS_ADAPTER_SMOKE"] === "1"
 
@@ -106,9 +113,20 @@ const seatsFor = async (binary: string): Promise<ReadonlyArray<string>> => {
   return ordered.includes(ambient) ? ordered : [...ordered, ambient]
 }
 
-/** Failures that mean "this seat is spent", so the pool moves to the next one. */
-const seatIsSpent = (tag: string): boolean =>
-  tag === "@smthrs-plugins/adapters/AuthFailed" || tag === "@smthrs-plugins/adapters/QuotaExhausted"
+/**
+ * Where the turn runs.
+ *
+ * A temp directory, never the package: an adapter writes vendor state beside
+ * its working directory (Codex's `--output-last-message` file, a Claude Code
+ * configuration directory when no seat is named), and that state carries the
+ * machine's own identity.
+ *
+ * It is a git repository because Codex refuses to run anywhere else: `codex
+ * exec` outside a repository answers "Not inside a trusted directory and
+ * --skip-git-repo-check was not specified" rather than taking the turn.
+ */
+const workspace = mkdtempSync(join(tmpdir(), "adapter-smoke-"))
+execFileSync("git", ["init", "--quiet"], { cwd: workspace, stdio: "ignore" })
 
 /**
  * Skips the case with the missing thing named, rather than vanishing.
@@ -142,60 +160,26 @@ const smoke = (name: string, spec: Spec.Spec, binary: string, prompt: string) =>
       it("answers a one-word question through its own reader", async (ctx) => {
         requireEnvironment(ctx, binary, present)
         // Seat failover, exactly as the pool does it: a seat whose login has
-        // lapsed or whose quota is spent is stepped over, every other failure
-        // is the adapter's and fails the test.
-        const seats = await seatsFor(binary)
-        const refusals: Array<string> = []
+        // lapsed or whose quota is spent is stepped over. A seat that starts
+        // and never finishes is not a login fact, so `SmokeGate` fails the run
+        // rather than skipping it — a hung vendor process is the symptom this
+        // suite exists to catch.
+        const attempts = await SmokeGate.attemptSeats(spec, await seatsFor(binary), {
+          prompt,
+          env: environment(),
+          cwd: workspace,
+          budgetMillis: turnBudgetMillis
+        })
 
-        for (const seat of seats) {
-          const bounded = await Effect.runPromise(
-            Effect.timeoutOption(
-              Effect.result(
-                CliRun.run(spec, {
-                  prompt,
-                  env: environment(),
-                  cwd: process.cwd(),
-                  configDir: seat
-                })
-              ),
-              turnBudgetMillis
-            ).pipe(Effect.provide(spawner))
-          )
+        const answered = SmokeGate.settle(ctx, binary, attempts)
 
-          if (bounded._tag === "None") {
-            // The binary started and did not finish inside the budget. An
-            // environment fact about this machine, not an adapter defect, so
-            // the next seat gets a turn.
-            refusals.push(`${seat}: no turn within ${turnBudgetMillis}ms`)
-            continue
-          }
-          const outcome = bounded.value
-
-          if (outcome._tag === "Failure") {
-            const tag = outcome.failure._tag
-            if (seatIsSpent(tag)) {
-              refusals.push(`${seat}: ${tag} (${outcome.failure.message.slice(0, 100)})`)
-              continue
-            }
-            throw new Error(`${name} smoke failed with ${tag}: ${outcome.failure.message.slice(0, 400)}`)
-          }
-
-          // eslint-disable-next-line no-console
-          console.log(
-            `${binary} answered on the seat at ${seat}: ${JSON.stringify(outcome.success.answer.trim().slice(0, 80))}`
-          )
-          expect(outcome.success.exitCode).toBe(0)
-          expect(outcome.success.answer.trim().length).toBeGreaterThan(0)
-          expect(outcome.success.records.length).toBeGreaterThan(0)
-          return
-        }
-
-        // Every seat refused. That is a fact about this machine's logins, not a
-        // statement about the adapter, so the case skips with each refusal
-        // named. Asserting on the refusal count here would record a green pass
-        // on a machine that never spent a real turn, which is the one outcome
-        // this suite must never produce.
-        ctx.skip(`no seat answered for ${binary}: ${refusals.join("; ")}`)
+        // eslint-disable-next-line no-console
+        console.log(
+          `${binary} answered on the seat at ${answered.seat}: ${JSON.stringify(answered.answer.trim().slice(0, 80))}`
+        )
+        expect(answered.exitCode).toBe(0)
+        expect(answered.answer.trim().length).toBeGreaterThan(0)
+        expect(answered.records).toBeGreaterThan(0)
       }, 300_000)
     }
   )
