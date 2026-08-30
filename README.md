@@ -62,10 +62,14 @@ Each host package declares its vendor SDK (`@cloudflare/sandbox`,
 `@vercel/sandbox`, `microsandbox`) as an optional peer dependency and carries a
 structural slice of it, so the package builds and type-checks with no vendor
 account. A conformance suite per host compiles the slice against the vendor's
-own declarations, and every one of them is red-checked: drift a member the host
-calls and the `check` gate fails.
+own declarations. Each one is red-checked by drifting a member the host calls
+in a copy of the slice: renaming `getLogs`, adding a parameter to `readFile`,
+or renaming `exec` makes the `check` gate report `TS2322` or `TS2344` on the
+conformance file itself, not only on the caller.
 
-`host-vercel` compiles both halves of its `^2.0.0 || ^3.0.0` peer range — the
+Each peer range is the range that is actually compiled: `microsandbox` is
+pinned at the exact `0.6.6` the suite installs, and `host-vercel` compiles both
+halves of its `^2.0.0 || ^3.0.0` peer range — the
 2.x devDependency plus a `@vercel/sandbox-3` install alias for the 3.x major —
 so neither half is a promise nobody checks. `host-cloudflare` asserts at compile
 time only: `@cloudflare/sandbox` resolves `@cloudflare/containers` under the
